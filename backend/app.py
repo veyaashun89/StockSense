@@ -90,6 +90,9 @@ def create_app(test_config=None):
     # Error Handlers
     @app.errorhandler(404)
     def not_found(error):
+        from flask import request
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "Resource not found", "status_code": 404}), 404
         if dist_dir.exists():
             from flask import send_from_directory
             return send_from_directory(dist_dir, "index.html")
