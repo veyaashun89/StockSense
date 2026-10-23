@@ -1,0 +1,27 @@
+# StockSense AI - Custom YOLOv8 Fine-Tuning Dataset Configuration
+# Train on the 6 retail demo SKUs:
+# 1. Milk 500ml (Amul Taaza)
+# 2. White Bread 400g (Harvest Gold)
+# 3. Instant Noodles 70g (Maggi)
+# 4. Basmati Rice 1kg (Fortune)
+# 5. Sunflower Oil 1L (Fortune Sunlite)
+# 6. Bathing Soap 100g (Dettol Original)
+
+path: c:/Users/VEYAASHUN/Downloads/StockSense-AI/backend/ml/dataset # dataset root dir
+train: images/train        # train images (relative to 'path')
+val: images/val            # val images (relative to 'path')
+test: images/test          # test images (optional)
+
+
+# Number of classes
+nc: 7
+
+# Class names (Class 0 reserved for person, classes 1-6 for retail SKUs)
+names:
+  0: person
+  1: SKU-MILK-500
+  2: SKU-BREAD-WHT
+  3: SKU-MAGGI-70
+  4: SKU-RICE-1KG
+  5: SKU-OIL-1L
+  6: SKU-SOAP-100

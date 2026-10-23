@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: stocksense-ai
+    env: python
+    buildCommand: "pip install -r backend/requirements.txt && cd frontend && npm install && npm run build && cd .. && python -c 'from backend.database import init_db; from backend.services.sample_data_service import seed_demonstration_data; init_db(); seed_demonstration_data()'"
+    startCommand: "gunicorn --bind 0.0.0.0:$PORT backend.app:create_app()"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: FLASK_ENV
+        value: production

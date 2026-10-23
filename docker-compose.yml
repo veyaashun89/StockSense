@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  stocksense:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stocksense-ai
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - PORT=5000
+    restart: unless-stopped

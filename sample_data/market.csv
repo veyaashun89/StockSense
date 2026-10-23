@@ -1,0 +1,4 @@
+date,scope_type,scope_value,signal_type,value,notes
+2026-10-23,category,Dairy & Fresh,festival_flag,1.25,Diwali week surge in milk and butter (+25%)
+2026-10-23,category,Beverages,seasonality_index,1.15,Warm weather cold beverage index
+2026-10-23,sku,SKU-RIC-09,price_index,0.95,Wholesale commodity price discount (-5%)

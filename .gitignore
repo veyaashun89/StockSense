@@ -1,0 +1,37 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+.venv/
+env/
+venv/
+ENV/
+
+# Database files & data
+backend/data/
+*.db
+*.sqlite
+*.sqlite3
+backend/stocksense.db
+
+# Frontend build & dependencies
+frontend/node_modules/
+frontend/dist/
+dist/
+
+# Logs & temp
+*.log
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS generated
+.DS_Store
+Thumbs.db
+
+# ML Training Runs
+runs/
+

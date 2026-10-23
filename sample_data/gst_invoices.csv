@@ -1,0 +1,6 @@
+invoice_no,invoice_date,supply_type,gstin_counterparty,hsn_code,item_description,sku,quantity,taxable_value,gst_rate,total_value
+INV-2026-101,2026-10-22,outward,27AAAAA0000A1Z5,0401,Fresh Whole Milk 1 Gal,SKU-MLK-01,18,77.22,0,77.22
+INV-2026-102,2026-10-22,outward,27AAAAA0000A1Z5,1905,Artisan Sourdough Loaf 500g,SKU-BRD-08,15,59.85,5,62.84
+INV-2026-103,2026-10-22,inward,27BBBBB1111B1Z9,0401,Fresh Whole Milk 1 Gal,SKU-MLK-01,24,57.60,0,57.60
+INV-2026-104,2026-10-22,outward,27AAAAA0000A1Z5,4818,Kitchen Paper Towels 6pk,SKU-TOW-27,8,67.92,12,76.07
+INV-BAD-999,invalid-date,outward,INVALID_GSTIN,9999,Unknown Item Nonexistent,UNKNOWN_SKU,0,0,0,0

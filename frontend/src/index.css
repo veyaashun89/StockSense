@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-primary-navy: #172B4D;
+    --color-primary-blue: #2563EB;
+    --color-secondary-teal: #0F766E;
+    --color-bg-main: #F7F9FC;
+    --color-surface: #FFFFFF;
+    --color-subtle-surface: #F1F5F9;
+    --color-text-primary: #172B4D;
+    --color-text-secondary: #64748B;
+    --color-text-muted: #94A3B8;
+    --color-border: #E2E8F0;
+    
+    --color-critical: #DC2626;
+    --color-high: #EA580C;
+    --color-medium: #D97706;
+    --color-healthy: #15803D;
+  }
+
+  :root.dark {
+    --color-bg-main: #0B0F17;
+    --color-surface: #131B2E;
+    --color-subtle-surface: #1E293B;
+    --color-text-primary: #F8FAFC;
+    --color-text-secondary: #94A3B8;
+    --color-text-muted: #64748B;
+    --color-border: #24334D;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    background-color: var(--color-bg-main);
+    color: var(--color-text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Universal WCAG AA Visible Focus Ring */
+  :focus-visible {
+    outline: 2px solid #2563EB !important;
+    outline-offset: 2px !important;
+  }
+
+  /* Tabular numbers for financial and stock figures */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+}
+
+/* Custom subtle scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
