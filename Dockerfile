@@ -37,5 +37,6 @@ RUN python -c "from backend.database import init_db; from backend.services.sampl
 
 EXPOSE 5000
 
-# Start production WSGI server
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "4", "backend.app:create_app()"]
+# Start production WSGI server with dynamic PORT fallback
+CMD exec gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 2 --threads 4 "backend.app:create_app()"
+
