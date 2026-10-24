@@ -1,12 +1,61 @@
 import datetime
+import time
+import threading
+from typing import List
 from flask import Blueprint, request, jsonify
 from backend.services.vision_service import recognize_product_cv
 from backend.services.payment_service import create_payment_request, verify_and_settle_payment
 from backend.services.alert_service import evaluate_and_generate_alerts
 from backend.services.auth_service import require_roles
 from backend.database import get_db
+from backend.services.notification_rules import evaluate_scanner_failure
+from backend.workers.notification_worker import enqueue_notification
 
 scanner_bp = Blueprint("scanner", __name__)
+
+_scanner_failure_timestamps: List[float] = []
+_scanner_lock = threading.Lock()
+
+def reset_scanner_failures():
+    with _scanner_lock:
+        _scanner_failure_timestamps.clear()
+
+def record_scanner_failure(reason: str = "Hardware timeout", terminal_id: str = "Register-1") -> int:
+    """
+    Records a scanner recognition failure in a 10-minute sliding window.
+    Triggers 'scanner_failure' notification when 3 or more failures occur in 10 minutes.
+    """
+    now = time.time()
+    cutoff = now - 600.0  # 10 minutes
+    with _scanner_lock:
+        _scanner_failure_timestamps.append(now)
+        recent = [t for t in _scanner_failure_timestamps if t >= cutoff]
+        _scanner_failure_timestamps[:] = recent
+        count = len(recent)
+
+    if count >= 3:
+        try:
+            eval_res = evaluate_scanner_failure(
+                failure_count_in_10m=count,
+                reason=reason,
+                terminal_id=terminal_id
+            )
+            if eval_res:
+                enqueue_notification(
+                    rule=eval_res["rule"],
+                    title=eval_res["title"],
+                    message=eval_res["message"],
+                    priority=eval_res["priority"],
+                    event_ref=f"scan_fail_{terminal_id}_{int(now)}",
+                    tags=eval_res["tags"],
+                    dedup_key=eval_res["dedup_key"],
+                    owner_id=1
+                )
+        except Exception:
+            pass
+
+    return count
+
 
 @scanner_bp.route("/scanner/recognize", methods=["POST"])
 def recognize_product():
@@ -30,7 +79,23 @@ def recognize_product():
         barcode_text=barcode_text,
         detected_label=detected_label
     )
+
+    if not result.get("matched") and (barcode_text or image_data):
+        record_scanner_failure(reason="Recognition failure or timeout")
+
     return jsonify(result), 200
+
+@scanner_bp.route("/scanner/report-failure", methods=["POST"])
+def report_scanner_failure():
+    """
+    Allow client POS terminal to report camera feed drop or timeout.
+    Triggers notification on 3rd failure in 10 minutes.
+    """
+    data = request.get_json() or {}
+    reason = data.get("reason", "Webcam stream disconnected")
+    terminal = data.get("terminal_id", "Register-1")
+    count = record_scanner_failure(reason=reason, terminal_id=terminal)
+    return jsonify({"status": "recorded", "failure_count_in_10m": count}), 200
 
 @scanner_bp.route("/scanner/quick-sale", methods=["POST"])
 @require_roles("retailer", "admin")

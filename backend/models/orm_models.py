@@ -409,3 +409,37 @@ class LocationStock(Base):
     location = relationship("Location", back_populates="stock_items")
     product = relationship("Product")
 
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    rule = Column(String(64), nullable=False, index=True)  # 'low_stock', 'expiry_risk', 'payment_verified', 'count_mismatch', 'scanner_failure', 'webhook_failed'
+    title = Column(String(255), nullable=False)
+    message = Column(Text, nullable=False)
+    priority = Column(Integer, nullable=False, default=3)  # 1 to 5
+    tags = Column(String(255), nullable=True)  # e.g. "warning,package"
+    event_ref = Column(String(100), nullable=False, index=True)  # Source event id
+    dedup_key = Column(String(255), unique=True, nullable=False, index=True)
+    status = Column(String(32), nullable=False, default="pending", index=True)  # 'pending', 'sent', 'failed', 'suppressed'
+    attempts = Column(Integer, default=0)
+    last_error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    sent_at = Column(DateTime, nullable=True)
+
+class NotificationSetting(Base):
+    __tablename__ = "notification_settings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), default=1, index=True)
+    rule = Column(String(64), nullable=False, index=True)
+    enabled = Column(Integer, default=1)  # 1 = True, 0 = False
+    threshold = Column(Float, default=10.0)  # e.g. low stock units, expiry days
+    quiet_hours_start = Column(String(5), default="22:00")
+    quiet_hours_end = Column(String(5), default="07:00")
+    min_minutes_between = Column(Integer, default=60)  # dedup window in minutes
+
+    __table_args__ = (
+        UniqueConstraint("owner_id", "rule", name="uq_owner_rule_setting"),
+    )
+
+

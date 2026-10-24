@@ -232,6 +232,34 @@ class LocationRepository:
                 session.add(alert)
                 created_alerts.append(alert_title)
 
+                try:
+                    from backend.services.notification_rules import evaluate_count_mismatch
+                    from backend.workers.notification_worker import enqueue_notification
+                    first_m = mismatches[0]
+                    notif_spec = evaluate_count_mismatch(
+                        location_name=loc.name,
+                        sku=first_m["sku"],
+                        product_name=first_m["sku"],
+                        difference=first_m["diff"],
+                        expected_qty=first_m["expected"],
+                        actual_qty=first_m["actual"],
+                        location_id=loc.id
+                    )
+                    if notif_spec:
+                        enqueue_notification(
+                            rule=notif_spec["rule"],
+                            title=notif_spec["title"],
+                            message=notif_spec["message"],
+                            priority=notif_spec["priority"],
+                            tags=notif_spec["tags"],
+                            event_ref=f"box_mismatch_{loc.id}_{now.strftime('%Y%m%d%H%M%S')}",
+                            dedup_key=notif_spec["dedup_key"],
+                            owner_id=1,
+                            db_session=session
+                        )
+                except Exception:
+                    pass
+
             session.flush()
 
             return {

@@ -61,6 +61,36 @@ class InventoryRepository(BaseRepository[Inventory]):
         self.session.add(movement)
         self.session.flush()
 
+        # Check low_stock notification trigger
+        if prod:
+            try:
+                from backend.services.notification_rules import evaluate_low_stock
+                from backend.workers.notification_worker import enqueue_notification
+                effective_reorder = inv.reorder_level if (inv and inv.reorder_level is not None) else (prod.min_order_qty or 10)
+                notif_spec = evaluate_low_stock(
+                    product_name=prod.name,
+                    sku=prod.sku,
+                    on_hand=new_balance,
+                    reorder_level=effective_reorder,
+                    location_name="Store-1",
+                    product_id=prod.id
+                )
+                if notif_spec:
+                    enqueue_notification(
+                        rule=notif_spec["rule"],
+                        title=notif_spec["title"],
+                        message=notif_spec["message"],
+                        priority=notif_spec["priority"],
+                        tags=notif_spec["tags"],
+                        event_ref=f"stock_deduct_{prod.id}_{new_balance}",
+                        dedup_key=notif_spec["dedup_key"],
+                        owner_id=owner_id,
+                        db_session=self.session
+                    )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"deduct_stock notification error: {e}", exc_info=True)
+
         return new_balance, movement
 
     def add_stock(

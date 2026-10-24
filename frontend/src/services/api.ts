@@ -27,7 +27,11 @@ import {
   RetailerOverviewData,
   WholesalerOverviewData,
   DealerOverviewData,
-  AdminOverviewData
+  AdminOverviewData,
+  NotificationsListResponse,
+  NotificationSettingsResponse,
+  TopicInfoResponse,
+  NotificationSetting
 } from '../types';
 
 const API_BASE = '/api';
@@ -599,6 +603,44 @@ export const api = {
   // Analytics (Demo CSV vs Live Ledger)
   getDemoAnalytics: () => authFetch(`${API_BASE}/analytics/demo`).then(res => handleResponse<any>(res)),
   importDemoAnalytics: () => authFetch(`${API_BASE}/analytics/demo/import`, { method: 'POST' }).then(res => handleResponse<any>(res)),
-  getLiveAnalytics: () => authFetch(`${API_BASE}/analytics/live`).then(res => handleResponse<any>(res))
+  getLiveAnalytics: () => authFetch(`${API_BASE}/analytics/live`).then(res => handleResponse<any>(res)),
+
+  // Push Notifications & Settings
+  getNotifications: (rule?: string, status?: string, limit: number = 50, offset: number = 0) => {
+    const params = new URLSearchParams();
+    if (rule && rule !== 'all') params.append('rule', rule);
+    if (status && status !== 'all') params.append('status', status);
+    params.append('limit', String(limit));
+    params.append('offset', String(offset));
+    return authFetch(`${API_BASE}/notifications?${params.toString()}`).then(res =>
+      handleResponse<NotificationsListResponse>(res)
+    );
+  },
+
+  getNotificationSettings: (ownerId?: number) => {
+    const q = ownerId ? `?owner_id=${ownerId}` : '';
+    return authFetch(`${API_BASE}/notifications/settings${q}`).then(res =>
+      handleResponse<NotificationSettingsResponse>(res)
+    );
+  },
+
+  updateNotificationSettings: (settings: NotificationSetting[], ownerId?: number) => {
+    const q = ownerId ? `?owner_id=${ownerId}` : '';
+    return authFetch(`${API_BASE}/notifications/settings${q}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings)
+    }).then(res => handleResponse<{ status: string; updated_count: number; message: string }>(res));
+  },
+
+  sendTestNotification: () =>
+    authFetch(`${API_BASE}/notifications/test-send`, {
+      method: 'POST'
+    }).then(res => handleResponse<{ status: string; notification_id?: number; message: string }>(res)),
+
+  getTopicInfo: () =>
+    authFetch(`${API_BASE}/notifications/topic-info`).then(res =>
+      handleResponse<TopicInfoResponse>(res)
+    )
 };
 

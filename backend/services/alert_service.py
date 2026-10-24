@@ -103,6 +103,29 @@ def evaluate_and_generate_alerts(shop_id: int = 1) -> Dict[str, Any]:
                     )
                     created_count += 1
 
+                    try:
+                        from backend.services.notification_rules import evaluate_expiry_risk
+                        from backend.workers.notification_worker import enqueue_notification
+                        notif_spec = evaluate_expiry_risk(
+                            product_name=pname,
+                            sku=sku,
+                            days_to_expiry=it.get("shelf_life_days") or 3,
+                            product_id=pid
+                        )
+                        if notif_spec:
+                            enqueue_notification(
+                                rule=notif_spec["rule"],
+                                title=notif_spec["title"],
+                                message=notif_spec["message"],
+                                priority=notif_spec["priority"],
+                                tags=notif_spec["tags"],
+                                event_ref=f"expiry_{pid}",
+                                dedup_key=notif_spec["dedup_key"],
+                                owner_id=1
+                            )
+                    except Exception:
+                        pass
+
             if lead_time >= (it.get("shelf_life_days") or 999):
                 cond_key = ("SHELF_LIFE_CONFLICT", pid)
                 active_conditions.add(cond_key)

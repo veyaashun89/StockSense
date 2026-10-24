@@ -48,6 +48,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       { id: 'reports', label: 'Reports', icon: FileText }
     ];
     secondaryNav = [
+      { id: 'notifications', label: 'Push Notifications', icon: Bell },
       { id: 'settings', label: 'Settings', icon: Settings },
       { id: 'data', label: 'Data Management', icon: Database }
     ];
@@ -55,6 +56,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
     operationsNav = [
       { id: 'dashboard', label: 'System Overview', icon: LayoutDashboard },
       { id: 'admin', label: 'Admin Console (RBAC)', icon: ShieldAlert },
+      { id: 'notifications', label: 'Push Alerts & Log', icon: Bell },
       { id: 'data', label: 'Data & Pipeline', icon: Database },
       { id: 'analytics', label: 'Analytics & Demo Data', icon: BarChart2 },
       { id: 'reports', label: 'System Reports', icon: FileText }
@@ -74,6 +76,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       { id: 'forecast', label: 'Demand Forecast', icon: TrendingUp },
       { id: 'reorder', label: 'Reorder Planner', icon: ClipboardList, badge: reorderBadgeCount },
       { id: 'alerts', label: 'Automated Alerts', icon: Bell, badge: openAlertsCount },
+      { id: 'notifications', label: 'Push Notifications', icon: Bell },
       { id: 'orders', label: 'Purchase Orders', icon: Truck },
       { id: 'reports', label: 'Reports', icon: FileText }
     ];

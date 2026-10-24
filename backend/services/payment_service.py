@@ -342,6 +342,29 @@ def verify_and_settle_payment(
                 sess_repo.transition_state(active_sess.id, "PAYMENT_PENDING", reason="Pending verification")
             sess_repo.transition_state(active_sess.id, SessionState.PAID, reason=f"Payment verified via UTR {utr}")
 
+    # 8. Fire-and-Forget Push Notification (Dispatched After DB Commit)
+    try:
+        from backend.services.notification_rules import evaluate_payment_verified
+        from backend.workers.notification_worker import enqueue_notification
+        notif_spec = evaluate_payment_verified(
+            amount_rupees_formatted=f"₹{amount:.2f}",
+            item_count=len(processed_items) or len(cart_items or []),
+            transaction_ref=transaction_ref,
+            source=payment_method
+        )
+        enqueue_notification(
+            rule=notif_spec["rule"],
+            title=notif_spec["title"],
+            message=notif_spec["message"],
+            priority=notif_spec["priority"],
+            tags=notif_spec["tags"],
+            event_ref=transaction_ref,
+            dedup_key=notif_spec["dedup_key"],
+            owner_id=1
+        )
+    except Exception as exc:
+        logger.warning(f"Non-blocking notification error on payment settlement: {exc}")
+
     return {
         "status": "SUCCESS",
         "verified": True,

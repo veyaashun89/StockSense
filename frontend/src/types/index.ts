@@ -614,5 +614,62 @@ export interface AdminOverviewData {
   }>;
 }
 
+export type NotificationRule =
+  | 'low_stock'
+  | 'expiry_risk'
+  | 'payment_verified'
+  | 'count_mismatch'
+  | 'scanner_failure'
+  | 'webhook_failed';
+
+export type NotificationStatus = 'pending' | 'sent' | 'failed' | 'suppressed';
+
+export interface PushNotification {
+  id: number;
+  rule: NotificationRule;
+  title: string;
+  message: string;
+  priority: number;
+  tags?: string;
+  event_ref: string;
+  dedup_key: string;
+  status: NotificationStatus;
+  attempts: number;
+  last_error?: string | null;
+  created_at: string;
+  sent_at?: string | null;
+}
+
+export interface NotificationSetting {
+  id?: number;
+  rule: NotificationRule;
+  enabled: boolean;
+  threshold: number;
+  quiet_hours_start: string;
+  quiet_hours_end: string;
+  min_minutes_between: number;
+}
+
+export interface NotificationsListResponse {
+  status: string;
+  total: number;
+  limit: number;
+  offset: number;
+  notifications: PushNotification[];
+}
+
+export interface NotificationSettingsResponse {
+  status: string;
+  owner_id: number;
+  settings: NotificationSetting[];
+}
+
+export interface TopicInfoResponse {
+  status: string;
+  base_url: string;
+  masked_topic: string;
+  instructions: string[];
+}
+
 
 

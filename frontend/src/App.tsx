@@ -17,6 +17,7 @@ import { ScannerPage } from './pages/ScannerPage';
 import { RecordPage } from './pages/RecordPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { DevComponentsPage } from './pages/DevComponentsPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 import { LoginPage } from './pages/LoginPage';
 import { RecommendationDrawer } from './components/common/RecommendationDrawer';
 import type { DashboardData, ReorderItem, UserRole, User } from './types';
@@ -211,6 +212,10 @@ export default function App() {
 
             {currentRoute === 'alerts' && (
               <AlertsPage />
+            )}
+
+            {currentRoute === 'notifications' && (
+              <NotificationsPage currencySymbol={currencySymbol} />
             )}
 
             {currentRoute === 'orders' && (

@@ -281,6 +281,27 @@ def transition_state():
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
+def _emit_webhook_failed_notification(reason_category: str):
+    try:
+        from backend.services.notification_rules import evaluate_webhook_failed
+        from backend.workers.notification_worker import enqueue_notification
+        import uuid
+
+        eval_res = evaluate_webhook_failed(reason_category=reason_category, gateway="PaymentGateway")
+        event_ref = f"wh_fail_{uuid.uuid4().hex[:10]}"
+        enqueue_notification(
+            rule=eval_res["rule"],
+            title=eval_res["title"],
+            message=eval_res["message"],
+            priority=eval_res["priority"],
+            event_ref=event_ref,
+            tags=eval_res["tags"],
+            dedup_key=eval_res["dedup_key"],
+            owner_id=1
+        )
+    except Exception as ex:
+        logger.warning(f"Failed to enqueue webhook failure notification: {ex}")
+
 @record_bp.route("/payment/webhook", methods=["POST"])
 def payment_webhook():
     """
@@ -298,6 +319,7 @@ def payment_webhook():
 
     if not is_demo_simulation:
         if not signature:
+            _emit_webhook_failed_notification("MISSING_SIGNATURE_HEADER")
             return jsonify({"error": "Missing X-StockSense-Signature header"}), 401
         
         expected_sig = hmac.new(
@@ -307,6 +329,7 @@ def payment_webhook():
         ).hexdigest()
 
         if not hmac.compare_digest(expected_sig, signature):
+            _emit_webhook_failed_notification("INVALID_HMAC_SIGNATURE")
             return jsonify({"error": "Invalid webhook HMAC signature"}), 401
 
     data = request.get_json(silent=True) or {}
@@ -317,6 +340,7 @@ def payment_webhook():
     po_id = data.get("purchase_order_id")
 
     if not txn_ref or amount <= 0:
+        _emit_webhook_failed_notification("MALFORMED_PAYLOAD")
         return jsonify({"error": "transaction_ref and positive amount are required"}), 400
 
     try:
@@ -331,7 +355,9 @@ def payment_webhook():
         return jsonify(receipt), 200
     except Exception as e:
         logger.error(f"Webhook settlement failure: {e}")
+        _emit_webhook_failed_notification("SETTLEMENT_ERROR")
         return jsonify({"error": f"Settlement failed: {str(e)}"}), 400
+
 
 @record_bp.route("/record/purge-old-events", methods=["POST"])
 def purge_old_detection_events():

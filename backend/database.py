@@ -179,5 +179,21 @@ def init_db(drop_all=False):
             VALUES (?, ?, ?, ?, ?, 1)
         """, (email, pwd, role, name, shop_id))
 
+    # Default Notification Rules & Settings
+    default_notification_rules = [
+        (1, "low_stock", 1, 10.0, "22:00", "07:00", 60),
+        (1, "expiry_risk", 1, 3.0, "22:00", "07:00", 120),
+        (1, "payment_verified", 1, 0.0, "22:00", "07:00", 15),
+        (1, "count_mismatch", 1, 1.0, "22:00", "07:00", 30),
+        (1, "scanner_failure", 1, 3.0, "22:00", "07:00", 60),
+        (1, "webhook_failed", 1, 1.0, "00:00", "00:00", 10),
+    ]
+    for oid, rule, enabled, thresh, q_start, q_end, min_m in default_notification_rules:
+        cursor.execute("""
+            INSERT OR IGNORE INTO notification_settings (owner_id, rule, enabled, threshold, quiet_hours_start, quiet_hours_end, min_minutes_between)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (oid, rule, enabled, thresh, q_start, q_end, min_m))
+
     db.commit()
     db.close()
+
