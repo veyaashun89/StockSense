@@ -19,11 +19,12 @@ import {
   Zap,
   Package,
   Layers,
-  Clock
+  Clock,
+  Barcode
 } from 'lucide-react';
 import { api } from '../services/api';
 import { SessionStateStrip } from '../components/overview/SessionStateStrip';
-import type { Product, CVScanResult, PaymentQrResponse, PaymentReceipt, CartItem } from '../types';
+import type { Product, CVScanResult, PaymentQrResponse, PaymentReceipt, CartItem, BarcodeDecodeResponse } from '../types';
 
 interface ScannerPageProps {
   onNavigate?: (route: string) => void;
@@ -38,6 +39,20 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onNavigate }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<CVScanResult | null>(null);
   const [activeBarcode, setActiveBarcode] = useState('');
+
+  // Optical Barcode State
+  const [matchedProduct, setMatchedProduct] = useState<Product | null>(null);
+  const [matchedBarcode, setMatchedBarcode] = useState<string | null>(null);
+  const [barcodeFormat, setBarcodeFormat] = useState<string | null>(null);
+  const [barcodeStatus, setBarcodeStatus] = useState<'idle' | 'matched' | 'unknown_code' | 'no_code'>('idle');
+  const [unknownCodeValue, setUnknownCodeValue] = useState<string | null>(null);
+  const [noCodeNotice, setNoCodeNotice] = useState<boolean>(false);
+  const [detectionSource, setDetectionSource] = useState<'browser_barcode_detector' | 'backend_zxing'>('backend_zxing');
+
+  const lastScannedCodeRef = useRef<string | null>(null);
+  const lastScannedTimeRef = useRef<number>(0);
+  const noCodeConsecutiveMsRef = useRef<number>(0);
+  const isDecodingFrameRef = useRef<boolean>(false);
 
   // POS Cart State
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -70,6 +85,8 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onNavigate }) => {
   // Initialize and Stop Camera
   const startCamera = async () => {
     setCameraError(null);
+    setNoCodeNotice(false);
+    noCodeConsecutiveMsRef.current = 0;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
@@ -80,7 +97,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onNavigate }) => {
         setCameraActive(true);
       }
     } catch (err: any) {
-      setCameraError('Camera access denied or unavailable. You can use image upload or click Quick Demo Presets below.');
+      setCameraError('Camera access blocked or unavailable. Camera access requires HTTPS or localhost in modern browsers. You can grant camera permission in browser settings, or use the photo upload button below.');
       setCameraActive(false);
     }
   };
@@ -92,6 +109,8 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onNavigate }) => {
       videoRef.current.srcObject = null;
     }
     setCameraActive(false);
+    noCodeConsecutiveMsRef.current = 0;
+    setNoCodeNotice(false);
   };
 
   useEffect(() => {
@@ -99,6 +118,134 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onNavigate }) => {
       stopCamera();
     };
   }, []);
+
+  // Live 400 ms optical barcode scanning loop (Browser BarcodeDetector API + Backend zxing-cpp fallback)
+  useEffect(() => {
+    if (!cameraActive) {
+      noCodeConsecutiveMsRef.current = 0;
+      setNoCodeNotice(false);
+      return;
+    }
+
+    const intervalId = window.setInterval(async () => {
+      if (isDecodingFrameRef.current) return;
+      if (!videoRef.current || videoRef.current.readyState < 2) return;
+
+      isDecodingFrameRef.current = true;
+      try {
+        let codeDetected: string | null = null;
+        let formatDetected = 'Barcode';
+
+        // 1. Check browser BarcodeDetector API first if available
+        if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+          try {
+            const detector = new (window as any).BarcodeDetector({
+              formats: ['ean_13', 'ean_8', 'upc_a', 'code_128', 'qr_code']
+            });
+            const detected = await detector.detect(videoRef.current);
+            if (detected && detected.length > 0) {
+              codeDetected = detected[0].rawValue;
+              formatDetected = detected[0].format || 'Barcode';
+            }
+          } catch {
+            // Fallback to backend
+          }
+        }
+
+        // 2. If browser BarcodeDetector detected a code
+        if (codeDetected) {
+          const now = Date.now();
+          if (codeDetected === lastScannedCodeRef.current && now - lastScannedTimeRef.current < 3000) {
+            isDecodingFrameRef.current = false;
+            return;
+          }
+          lastScannedCodeRef.current = codeDetected;
+          lastScannedTimeRef.current = now;
+          noCodeConsecutiveMsRef.current = 0;
+          setNoCodeNotice(false);
+
+          const res = await api.recognizeProduct({ barcode: codeDetected });
+          if (res.matched && res.product) {
+            setMatchedProduct(res.product);
+            setMatchedBarcode(codeDetected);
+            setBarcodeFormat(formatDetected);
+            setBarcodeStatus('matched');
+            setUnknownCodeValue(null);
+            setDetectionSource('browser_barcode_detector');
+          } else {
+            setBarcodeStatus('unknown_code');
+            setUnknownCodeValue(codeDetected);
+            setBarcodeFormat(formatDetected);
+            setMatchedProduct(null);
+            setDetectionSource('browser_barcode_detector');
+          }
+          isDecodingFrameRef.current = false;
+          return;
+        }
+
+        // 3. Fallback to backend /api/scanner/decode using captured webcam frame
+        if (canvasRef.current && videoRef.current) {
+          const video = videoRef.current;
+          const canvas = canvasRef.current;
+          canvas.width = Math.min(video.videoWidth || 640, 640);
+          canvas.height = Math.min(video.videoHeight || 480, 480);
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const base64Frame = canvas.toDataURL('image/jpeg', 0.8);
+            const res = await api.decodeBarcode({ image: base64Frame });
+
+            if (res.status === 'matched' && res.product) {
+              const codeVal = res.matched_code || res.codes[0]?.value || res.product.barcode || res.product.sku;
+              const now = Date.now();
+              if (codeVal === lastScannedCodeRef.current && now - lastScannedTimeRef.current < 3000) {
+                isDecodingFrameRef.current = false;
+                return;
+              }
+              lastScannedCodeRef.current = codeVal;
+              lastScannedTimeRef.current = now;
+              noCodeConsecutiveMsRef.current = 0;
+              setNoCodeNotice(false);
+              setMatchedProduct(res.product);
+              setMatchedBarcode(codeVal);
+              setBarcodeFormat(res.codes[0]?.format || 'EAN-13');
+              setBarcodeStatus('matched');
+              setUnknownCodeValue(null);
+              setDetectionSource('backend_zxing');
+            } else if (res.status === 'unknown_code' && res.codes.length > 0) {
+              const codeVal = res.primary_code || res.codes[0]?.value;
+              const now = Date.now();
+              if (codeVal === lastScannedCodeRef.current && now - lastScannedTimeRef.current < 3000) {
+                isDecodingFrameRef.current = false;
+                return;
+              }
+              lastScannedCodeRef.current = codeVal;
+              lastScannedTimeRef.current = now;
+              noCodeConsecutiveMsRef.current = 0;
+              setNoCodeNotice(false);
+              setBarcodeStatus('unknown_code');
+              setUnknownCodeValue(codeVal);
+              setBarcodeFormat(res.codes[0]?.format || 'Barcode');
+              setMatchedProduct(null);
+              setDetectionSource('backend_zxing');
+            } else {
+              // no_code
+              noCodeConsecutiveMsRef.current += 400;
+              if (noCodeConsecutiveMsRef.current >= 3000) {
+                setNoCodeNotice(true);
+              }
+            }
+          }
+        }
+      } catch {
+        // Quiet catch in live scanner loop
+      } finally {
+        isDecodingFrameRef.current = false;
+      }
+    }, 400);
+
+    return () => clearInterval(intervalId);
+  }, [cameraActive]);
 
   // Run CV recognition on captured frame or image
   const captureAndRecognize = async (overrideBase64?: string, labelHint?: string, barcodeHint?: string) => {
@@ -120,12 +267,43 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onNavigate }) => {
     }
 
     try {
+      // 1. Try optical decode if image is available (decoded code always beats visual matching)
+      if (base64Image && !barcodeHint && !labelHint) {
+        const decodeRes = await api.decodeBarcode({ image: base64Image });
+        if (decodeRes.status === 'matched' && decodeRes.product) {
+          setMatchedProduct(decodeRes.product);
+          setMatchedBarcode(decodeRes.matched_code || decodeRes.codes[0]?.value || decodeRes.product.barcode || null);
+          setBarcodeFormat(decodeRes.codes[0]?.format || 'EAN-13');
+          setBarcodeStatus('matched');
+          setUnknownCodeValue(null);
+          setNoCodeNotice(false);
+          setIsScanning(false);
+          return;
+        } else if (decodeRes.status === 'unknown_code' && decodeRes.codes.length > 0) {
+          setBarcodeStatus('unknown_code');
+          setUnknownCodeValue(decodeRes.primary_code || decodeRes.codes[0]?.value);
+          setBarcodeFormat(decodeRes.codes[0]?.format || 'Barcode');
+          setMatchedProduct(null);
+          setNoCodeNotice(false);
+          setIsScanning(false);
+          return;
+        }
+      }
+
+      // 2. Fall back to standard recognition
       const res = await api.recognizeProduct({
         image_data: base64Image,
         barcode: barcodeHint || activeBarcode || undefined,
         label: labelHint
       });
       setScanResult(res);
+      if (res.matched && res.product) {
+        setMatchedProduct(res.product);
+        setMatchedBarcode(res.product.barcode || res.product.sku);
+        setBarcodeFormat('CV Visual Match');
+        setBarcodeStatus('matched');
+        setUnknownCodeValue(null);
+      }
     } catch (err: any) {
       alert(err?.message || 'CV Recognition failed');
     } finally {
@@ -138,9 +316,9 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onNavigate }) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       const base64 = reader.result as string;
-      captureAndRecognize(base64);
+      await captureAndRecognize(base64);
     };
     reader.readAsDataURL(file);
   };
@@ -380,6 +558,30 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onNavigate }) => {
               </div>
             </div>
 
+            {/* Camera Access Denied / HTTPS Warning */}
+            {cameraError && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-900 text-xs font-medium space-y-1.5 animate-fade-in shadow-xs">
+                <div className="flex items-center gap-2 font-bold text-rose-800">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  Camera Access Blocked
+                </div>
+                <div className="text-slate-700">{cameraError}</div>
+                <div className="pt-1 flex items-center gap-2">
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold cursor-pointer shadow-xs transition-colors">
+                    <Upload className="w-3.5 h-3.5" />
+                    Upload Photo Instead
+                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                  </label>
+                  <button
+                    onClick={() => setCameraError(null)}
+                    className="px-2.5 py-1 text-xs text-rose-700 hover:text-rose-900 font-medium"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Viewfinder Window */}
             <div className="relative aspect-video bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center border-2 border-slate-700">
               {/* Hidden canvas for pixel extraction */}
@@ -412,7 +614,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onNavigate }) => {
               {/* Optical Crosshair Overlay */}
               {cameraActive && (
                 <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
-                  <div className="w-48 h-48 border-2 border-blue-400/80 rounded-2xl relative animate-pulse">
+                  <div className="w-56 h-36 border-2 border-blue-400/80 rounded-2xl relative animate-pulse">
                     <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-blue-500 -mt-1 -ml-1 rounded-tl" />
                     <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-blue-500 -mt-1 -mr-1 rounded-tr" />
                     <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-blue-500 -mb-1 -ml-1 rounded-bl" />
@@ -420,9 +622,18 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onNavigate }) => {
                     {/* Laser scan line animation */}
                     <div className="w-full h-0.5 bg-blue-400/90 shadow-[0_0_8px_#3b82f6] absolute top-1/2 -translate-y-1/2 animate-bounce" />
                   </div>
-                  <span className="text-[11px] font-mono text-white/80 bg-slate-900/60 px-2 py-0.5 rounded mt-3 backdrop-blur-xs">
-                    Align Product or Barcode in Crosshair
+                  <span className="text-[11px] font-mono text-white/90 bg-slate-900/70 px-2 py-0.5 rounded mt-3 backdrop-blur-xs flex items-center gap-1.5">
+                    <Barcode className="w-3.5 h-3.5 text-blue-400" />
+                    Align Barcode or QR Code in Viewfinder
                   </span>
+
+                  {/* 3-second No-Code Guidance Notice */}
+                  {noCodeNotice && (
+                    <div className="absolute bottom-3 left-4 right-4 bg-slate-900/90 border border-amber-400/40 text-amber-300 text-xs px-3 py-1.5 rounded-lg text-center backdrop-blur-md animate-fade-in flex items-center justify-center gap-2">
+                      <Scan className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                      <span>Point the barcode at the camera, or upload a photo.</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -446,16 +657,24 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onNavigate }) => {
                 </button>
               </div>
 
-              {cameraActive && (
-                <button
-                  onClick={() => captureAndRecognize()}
-                  disabled={isScanning}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-2 transition-colors disabled:opacity-50"
-                >
-                  <Sparkles className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
-                  <span>{isScanning ? 'Analyzing with CV...' : 'Capture & Identify Product'}</span>
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer border border-slate-200 transition-colors">
+                  <Upload className="w-3.5 h-3.5 text-slate-500" />
+                  Upload Photo
+                  <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                </label>
+
+                {cameraActive && (
+                  <button
+                    onClick={() => captureAndRecognize()}
+                    disabled={isScanning}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  >
+                    <Sparkles className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
+                    <span>{isScanning ? 'Decoding...' : 'Capture Frame'}</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Demo Presets Palette for Instant Hackathon Demonstration */}
@@ -467,7 +686,14 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onNavigate }) => {
                 {quickProducts.map((p) => (
                   <button
                     key={p.sku}
-                    onClick={() => captureAndRecognize(undefined, p.name, p.sku)}
+                    onClick={() => {
+                      setMatchedProduct(p);
+                      setMatchedBarcode(p.barcode || p.sku);
+                      setBarcodeFormat('Store Master');
+                      setBarcodeStatus('matched');
+                      setUnknownCodeValue(null);
+                      setNoCodeNotice(false);
+                    }}
                     className="p-2 rounded-lg border border-slate-200 text-left hover:border-blue-500 hover:bg-blue-50/40 transition-colors text-xs"
                   >
                     <div className="font-semibold text-slate-900 truncate">{p.name}</div>
@@ -481,30 +707,65 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* Detected Product Card */}
-          {scanResult && scanResult.product && (
+          {/* Unknown Code Banner */}
+          {barcodeStatus === 'unknown_code' && unknownCodeValue && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-900 text-xs space-y-2.5 animate-scale-in shadow-xs">
+              <div className="flex items-center gap-2 font-bold text-amber-800 text-sm">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                Code not in catalogue: <span className="font-mono bg-amber-100 px-2 py-0.5 rounded text-amber-900">{unknownCodeValue}</span>
+              </div>
+              <p className="text-[11px] text-amber-700">
+                The optical code was decoded successfully ({barcodeFormat || 'EAN/QR'}), but no active SKU or product record matches this barcode in the store inventory master.
+              </p>
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  onClick={() => {
+                    if (onNavigate) onNavigate('inventory');
+                  }}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shadow-xs"
+                >
+                  Add Product to Catalogue
+                </button>
+                <button
+                  onClick={() => {
+                    setBarcodeStatus('idle');
+                    setUnknownCodeValue(null);
+                  }}
+                  className="px-3 py-1.5 bg-white border border-amber-300 text-amber-800 rounded-lg text-xs font-semibold hover:bg-amber-50"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Matched Product Card */}
+          {matchedProduct && (
             <div className="bg-white rounded-xl border border-blue-200 p-5 shadow-xs animate-scale-in space-y-4">
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                      {scanResult.product.sku}
+                      {matchedProduct.sku}
                     </span>
+                    {matchedBarcode && (
+                      <span className="text-xs font-mono text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1">
+                        <Barcode className="w-3.5 h-3.5 text-blue-600" />
+                        {barcodeFormat ? `${barcodeFormat}: ` : ''}{matchedBarcode}
+                      </span>
+                    )}
                     <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-                      <Sparkles className="w-3 h-3" />
-                      {scanResult.confidence_percentage} Confidence
-                    </span>
-                    <span className="text-xs text-slate-400 font-mono">
-                      {scanResult.recognition_mode}
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      Optical Match Verified
                     </span>
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900 mt-1">{scanResult.product.name}</h3>
-                  <p className="text-xs text-slate-500">{scanResult.product.category}</p>
+                  <h3 className="text-lg font-bold text-slate-900 mt-1.5">{matchedProduct.name}</h3>
+                  <p className="text-xs text-slate-500">{matchedProduct.category}</p>
                 </div>
 
-                <div className="text-right">
+                <div className="text-right shrink-0">
                   <div className="text-2xl font-extrabold text-slate-900 font-mono">
-                    ₹{scanResult.product.selling_price.toFixed(2)}
+                    ₹{(matchedProduct.selling_price || ((matchedProduct.retail_price_paise || 0) / 100)).toFixed(2)}
                   </div>
                   <div className="text-xs text-slate-400">Unit Retail Price</div>
                 </div>
@@ -513,36 +774,36 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onNavigate }) => {
               {/* Inventory Status Bar */}
               <div className="grid grid-cols-3 gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs">
                 <div>
-                  <span className="text-slate-500 block">Current On-Hand</span>
-                  <span className={`font-bold font-mono text-sm ${scanResult.product.current_stock < 10 ? 'text-red-600' : 'text-slate-900'}`}>
-                    {scanResult.product.current_stock} units
+                  <span className="text-slate-500 block">Current Stock</span>
+                  <span className={`font-bold font-mono text-sm ${matchedProduct.current_stock < 10 ? 'text-red-600' : 'text-slate-900'}`}>
+                    {matchedProduct.current_stock} units
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block">Perishable Window</span>
+                  <span className="text-slate-500 block">Category</span>
                   <span className="font-semibold text-slate-800">
-                    {scanResult.product.is_perishable ? `${scanResult.product.shelf_life_days}d Shelf Life` : 'Non-perishable'}
+                    {matchedProduct.category}
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-500 block">Supplier Pack</span>
                   <span className="font-semibold text-slate-800">
-                    {scanResult.product.pack_size} units/box
+                    {matchedProduct.pack_size || 1} units/box
                   </span>
                 </div>
               </div>
 
-              {/* Action Buttons */}
+              {/* Action Buttons: Add to basket button */}
               <div className="flex flex-wrap items-center gap-2.5 pt-1">
                 <button
-                  onClick={() => addToCart(scanResult.product!)}
+                  onClick={() => addToCart(matchedProduct)}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-colors"
                 >
                   <ShoppingCart className="w-3.5 h-3.5" />
-                  Add to POS Cart
+                  Add to basket
                 </button>
                 <button
-                  onClick={() => handleQuickSale(scanResult.product!.id)}
+                  onClick={() => handleQuickSale(matchedProduct.id)}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-colors"
                 >
                   <Zap className="w-3.5 h-3.5" />

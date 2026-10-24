@@ -100,6 +100,82 @@ def load_pil_image(image_input: Any) -> Optional[Image.Image]:
         print(f"load_pil_image error: {e}")
     return None
 
+FORMAT_NAME_MAP = {
+    "EAN13": "EAN-13",
+    "EAN8": "EAN-8",
+    "UPCA": "UPC-A",
+    "Code128": "Code 128",
+    "QRCode": "QR"
+}
+
+def decode_codes(image_bytes: bytes) -> List[Dict[str, Any]]:
+    """
+    Decodes optical barcodes and QR codes from image bytes using zxing-cpp.
+    Supports EAN-13, EAN-8, UPC-A, Code 128, and QR codes.
+    Returns: list of {format, value, bbox, confidence}
+    where bbox is normalized [ymin, xmin, ymax, xmax].
+    """
+    if zxingcpp is None or not image_bytes:
+        return []
+
+    try:
+        pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    except Exception:
+        pil_img = load_pil_image(image_bytes)
+        if pil_img is None:
+            return []
+
+    width, height = pil_img.size
+    if width <= 0 or height <= 0:
+        return []
+
+    try:
+        results = zxingcpp.read_barcodes(
+            pil_img,
+            try_rotate=True,
+            try_downscale=True,
+            try_invert=True
+        )
+    except Exception as e:
+        print(f"Barcode decoding error in decode_codes: {e}")
+        return []
+
+    codes = []
+    for r in results:
+        try:
+            val = getattr(r, "text", "")
+            if not val:
+                continue
+
+            raw_format = getattr(r.format, "name", str(r.format))
+            display_format = FORMAT_NAME_MAP.get(raw_format, raw_format)
+
+            xs = [r.position.top_left.x, r.position.top_right.x, r.position.bottom_right.x, r.position.bottom_left.x]
+            ys = [r.position.top_left.y, r.position.top_right.y, r.position.bottom_right.y, r.position.bottom_left.y]
+            min_x, max_x = max(0, min(xs)), min(width, max(xs))
+            min_y, max_y = max(0, min(ys)), min(height, max(ys))
+
+            norm_bbox = [
+                round(min_y / max(1, height), 4),
+                round(min_x / max(1, width), 4),
+                round(max_y / max(1, height), 4),
+                round(max_x / max(1, width), 4)
+            ]
+
+            confidence = 1.0 if getattr(r, "is_valid", True) else 0.85
+
+            codes.append({
+                "format": display_format,
+                "raw_format": raw_format,
+                "value": val,
+                "bbox": norm_bbox,
+                "confidence": confidence
+            })
+        except Exception:
+            continue
+
+    return codes
+
 def decode_barcodes_from_image(image_input: Any) -> List[Dict[str, Any]]:
     """
     Decodes multiple barcodes and QR codes from an image using zxing-cpp.

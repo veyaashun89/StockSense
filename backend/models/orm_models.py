@@ -64,7 +64,7 @@ class Product(Base):
     min_order_qty = Column(Integer, default=1)
     pack_size = Column(Integer, default=1)
     safety_buffer_days = Column(Integer, default=3)
-    barcode = Column(String(100), nullable=True, index=True)
+    barcode = Column(String(100), unique=True, nullable=True, index=True)
     is_active = Column(Integer, default=1, server_default="1")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)

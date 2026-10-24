@@ -1,0 +1,25 @@
+file,expected_value,type,should_decode,failure_reason
+pack_amul_milk_ean13.png,8901262010054,printed_pack,True,
+pack_bread_ean13.png,8901063012011,printed_pack,True,
+pack_maggi_ean13.png,8901058852462,printed_pack,True,
+pack_rice_ean13.png,8906007280129,printed_pack,True,
+pack_oil_ean13.png,8906007281010,printed_pack,True,
+pack_soap_ean13.png,8901396381006,printed_pack,True,
+screen_qr_store_url.png,https://stocksense.ai/pos,screen,True,
+screen_ean13_colgate.png,8901314010520,screen,True,
+screen_upca_beverage.png,012345678905,screen,True,
+screen_code128_batch.png,BATCH-2026-OCT,screen,True,
+screen_ean8_candy.png,96385074,screen,True,
+angle_15deg_maggi.png,8901058852462,angle_15,True,
+angle_30deg_bread.png,8901063012011,angle_30,True,
+angle_45deg_qr.png,POS-TERMINAL-01,angle_45,True,
+angle_rotated_90deg_milk.png,8901262010054,angle_90,True,
+dim_light_amul_milk.png,8901262010054,dim_light,True,
+dim_light_soap_ean13.png,8901396381006,dim_light,True,
+dim_light_qr_order.png,ORDER-IND-9941,dim_light,True,
+shadow_across_rice.png,8906007280129,shadow,True,
+mild_perspective_oil.png,8906007281010,perspective,True,
+failure_heavy_blur.png,,blur,False,blur
+failure_specular_glare.png,,glare,False,glare
+failure_tiny_distance.png,,too_small,False,too small
+failure_no_code_apple.png,,no_code,False,no code visible

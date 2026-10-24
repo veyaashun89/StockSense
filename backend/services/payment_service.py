@@ -335,11 +335,12 @@ def verify_and_settle_payment(
         # 7. Transition Session State to PAID
         active_sess = sess_repo.get_or_create_active_session()
         if active_sess.state != SessionState.PAID:
-            if active_sess.state not in ("PAYMENT_PENDING", "BASKET"):
-                # Transition smoothly
-                sess_repo.transition_state(active_sess.id, "BASKET", reason="Checkout auto-sync")
-            if active_sess.state != "PAYMENT_PENDING":
-                sess_repo.transition_state(active_sess.id, "PAYMENT_PENDING", reason="Pending verification")
+            if active_sess.state == SessionState.RECORDING:
+                sess_repo.transition_state(active_sess.id, SessionState.IDLE, reason="Reset prior recording")
+            if active_sess.state in (SessionState.IDLE, SessionState.SCANNING):
+                sess_repo.transition_state(active_sess.id, SessionState.BASKET, reason="Checkout auto-sync")
+            if active_sess.state != SessionState.PAYMENT_PENDING:
+                sess_repo.transition_state(active_sess.id, SessionState.PAYMENT_PENDING, reason="Pending verification")
             sess_repo.transition_state(active_sess.id, SessionState.PAID, reason=f"Payment verified via UTR {utr}")
 
     # 8. Fire-and-Forget Push Notification (Dispatched After DB Commit)

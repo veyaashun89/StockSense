@@ -78,31 +78,16 @@ def enqueue_notification(
         # 2. Check Deduplication
         existing = repo.get_by_dedup_key(dedup_key)
         min_mins = setting.min_minutes_between if setting else 60
+        effective_dedup_key = dedup_key
         if existing:
             time_diff = (now - existing.created_at).total_seconds() / 60.0
             if time_diff < min_mins:
                 logger.info(f"Notification suppressed: duplicate key {dedup_key} within {min_mins}m window")
                 return {"status": "suppressed", "reason": "deduplicated", "id": existing.id}
+            else:
+                effective_dedup_key = f"{dedup_key}:{int(now.timestamp())}"
 
-        # 3. Check Hourly Rate Limit (max 20 per hour per owner)
-        sent_in_last_hour = repo.count_sent_in_last_hour(window_hours=1)
-        if is_hourly_rate_limit_exceeded(sent_in_last_hour, max_per_hour=20):
-            notif = repo.create(
-                rule=rule,
-                title=title,
-                message=message,
-                priority=priority,
-                tags=tags,
-                event_ref=event_ref,
-                dedup_key=dedup_key,
-                status="suppressed"
-            )
-            notif.last_error = f"Hourly rate limit (20) exceeded for owner {owner_id}."
-            session.flush()
-            logger.warning(f"Notification rate limit exceeded: suppressed {dedup_key}")
-            return {"status": "suppressed", "reason": "rate_limit_exceeded", "id": notif.id}
-
-        # 4. Check Quiet Hours (Priority 5 ALWAYS sends!)
+        # 3. Check Quiet Hours (Priority 5 ALWAYS sends!)
         quiet_start = setting.quiet_hours_start if setting else "22:00"
         quiet_end = setting.quiet_hours_end if setting else "07:00"
         if not ignore_quiet_hours and priority < PRIORITY_MAX and is_in_quiet_hours(current_time_str, quiet_start, quiet_end):
@@ -113,13 +98,31 @@ def enqueue_notification(
                 priority=priority,
                 tags=tags,
                 event_ref=event_ref,
-                dedup_key=dedup_key,
+                dedup_key=effective_dedup_key,
                 status="suppressed"
             )
             notif.last_error = f"Suppressed during quiet hours ({quiet_start}-{quiet_end})."
             session.flush()
             logger.info(f"Notification suppressed for quiet hours ({current_time_str} in {quiet_start}-{quiet_end}): {title}")
             return {"status": "suppressed", "reason": "quiet_hours", "id": notif.id}
+
+        # 4. Check Hourly Rate Limit (max 20 per hour per owner)
+        sent_in_last_hour = repo.count_sent_in_last_hour(window_hours=1)
+        if is_hourly_rate_limit_exceeded(sent_in_last_hour, max_per_hour=20):
+            notif = repo.create(
+                rule=rule,
+                title=title,
+                message=message,
+                priority=priority,
+                tags=tags,
+                event_ref=event_ref,
+                dedup_key=effective_dedup_key,
+                status="suppressed"
+            )
+            notif.last_error = f"Hourly rate limit (20) exceeded for owner {owner_id}."
+            session.flush()
+            logger.warning(f"Notification rate limit exceeded: suppressed {effective_dedup_key}")
+            return {"status": "suppressed", "reason": "rate_limit_exceeded", "id": notif.id}
 
         # 5. Passed all checks -> Create record with status='pending'
         notif = repo.create(
@@ -129,14 +132,19 @@ def enqueue_notification(
             priority=priority,
             tags=tags,
             event_ref=event_ref,
-            dedup_key=dedup_key,
+            dedup_key=effective_dedup_key,
             status="pending"
         )
         session.flush()
         return {"status": "pending", "id": notif.id}
 
     if db_session is not None:
-        result = _execute_enqueue(db_session)
+        try:
+            with db_session.begin_nested():
+                result = _execute_enqueue(db_session)
+        except Exception as e:
+            logger.error(f"Error enqueuing notification in session savepoint: {e}")
+            return {"status": "error", "error": str(e)}
     else:
         with get_db_session() as session:
             result = _execute_enqueue(session)

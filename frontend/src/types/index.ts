@@ -19,6 +19,9 @@ export interface Product {
   current_stock: number;
   unit_cost: number;
   selling_price: number;
+  barcode?: string | null;
+  retail_price_paise?: number;
+  unit_cost_paise?: number;
   supplier_id?: number | null;
   supplier_name?: string | null;
   lead_time_days: number;
@@ -383,6 +386,23 @@ export interface CVScanResult {
     confidence_percentage: string;
     product: Product;
   }>;
+}
+
+export interface BarcodeDecodeItem {
+  format: string;
+  raw_format?: string;
+  value: string;
+  bbox: number[];
+  confidence: number;
+}
+
+export interface BarcodeDecodeResponse {
+  status: 'matched' | 'unknown_code' | 'no_code' | 'rate_limited';
+  product: Product | null;
+  codes: BarcodeDecodeItem[];
+  matched_code?: string;
+  primary_code?: string;
+  error?: string;
 }
 
 export interface PaymentQrResponse {

@@ -1,9 +1,11 @@
 import datetime
 import time
 import threading
-from typing import List
+import base64
+import io
+from typing import List, Dict, Any, Optional
 from flask import Blueprint, request, jsonify
-from backend.services.vision_service import recognize_product_cv
+from backend.services.vision_service import recognize_product_cv, decode_codes
 from backend.services.payment_service import create_payment_request, verify_and_settle_payment
 from backend.services.alert_service import evaluate_and_generate_alerts
 from backend.services.auth_service import require_roles
@@ -15,6 +17,23 @@ scanner_bp = Blueprint("scanner", __name__)
 
 _scanner_failure_timestamps: List[float] = []
 _scanner_lock = threading.Lock()
+
+MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024  # 2 MB
+_decode_rate_limits: Dict[str, List[float]] = {}
+_decode_rate_lock = threading.Lock()
+MAX_DECODES_PER_SEC = 15
+
+def _check_decode_rate_limit(client_id: str) -> bool:
+    now = time.time()
+    with _decode_rate_lock:
+        timestamps = _decode_rate_limits.setdefault(client_id, [])
+        valid = [t for t in timestamps if now - t < 1.0]
+        if len(valid) >= MAX_DECODES_PER_SEC:
+            _decode_rate_limits[client_id] = valid
+            return False
+        valid.append(now)
+        _decode_rate_limits[client_id] = valid
+        return True
 
 def reset_scanner_failures():
     with _scanner_lock:
@@ -84,6 +103,156 @@ def recognize_product():
         record_scanner_failure(reason="Recognition failure or timeout")
 
     return jsonify(result), 200
+
+@scanner_bp.route("/scanner/decode", methods=["POST"])
+def decode_scanner_frame():
+    """
+    Optical Barcode and QR Code Decoding Endpoint.
+    Accepts base64 JPEG or PNG (max 2 MB) or multipart image upload.
+    Validates size and type, enforces rate limits, decodes codes via zxing-cpp,
+    and looks up each decoded code in products.barcode (and products.sku).
+    Returns:
+      {
+        "status": "matched" | "unknown_code" | "no_code",
+        "product": ProductDict | None,
+        "codes": List[DecodedCode]
+      }
+    Never returns a stack trace.
+    """
+    client_ip = request.remote_addr or "127.0.0.1"
+    if not _check_decode_rate_limit(client_ip):
+        return jsonify({
+            "status": "rate_limited",
+            "error": "Rate limit exceeded. Maximum 15 requests per second.",
+            "product": None,
+            "codes": []
+        }), 429
+
+    raw_bytes = None
+    try:
+        data = request.get_json(silent=True) or {}
+        image_input = data.get("image") or data.get("image_data") or data.get("frame")
+
+        if image_input:
+            if isinstance(image_input, str):
+                clean_str = image_input
+                if "base64," in clean_str:
+                    clean_str = clean_str.split("base64,")[1]
+                raw_bytes = base64.b64decode(clean_str)
+            elif isinstance(image_input, bytes):
+                raw_bytes = image_input
+        elif "file" in request.files:
+            raw_bytes = request.files["file"].read()
+        elif request.data:
+            raw_bytes = request.data
+    except Exception:
+        return jsonify({
+            "status": "no_code",
+            "error": "Invalid base64 image encoding.",
+            "product": None,
+            "codes": []
+        }), 400
+
+    if not raw_bytes:
+        return jsonify({
+            "status": "no_code",
+            "error": "No image data provided. Send base64 JPEG or PNG in request body.",
+            "product": None,
+            "codes": []
+        }), 400
+
+    if len(raw_bytes) > MAX_IMAGE_SIZE_BYTES:
+        return jsonify({
+            "status": "no_code",
+            "error": f"Image exceeds 2 MB limit (received {len(raw_bytes)} bytes).",
+            "product": None,
+            "codes": []
+        }), 400
+
+    try:
+        from PIL import Image
+        pil_img = Image.open(io.BytesIO(raw_bytes))
+        img_format = (pil_img.format or "").upper()
+        if img_format not in ("JPEG", "PNG", "JPG"):
+            return jsonify({
+                "status": "no_code",
+                "error": f"Unsupported image format '{img_format}'. Only JPEG and PNG are allowed.",
+                "product": None,
+                "codes": []
+            }), 400
+    except Exception:
+        return jsonify({
+            "status": "no_code",
+            "error": "Invalid or corrupt image format. Only JPEG and PNG are allowed.",
+            "product": None,
+            "codes": []
+        }), 400
+
+    try:
+        decoded_codes = decode_codes(raw_bytes)
+    except Exception:
+        return jsonify({
+            "status": "no_code",
+            "error": "Optical decoding process encountered an error.",
+            "product": None,
+            "codes": []
+        }), 200
+
+    if not decoded_codes:
+        return jsonify({
+            "status": "no_code",
+            "product": None,
+            "codes": []
+        }), 200
+
+    try:
+        db = get_db()
+        cursor = db.cursor()
+        for code in decoded_codes:
+            val = code["value"].strip()
+            if not val:
+                continue
+
+            cursor.execute("""
+                SELECT p.*, s.name as supplier_name,
+                       COALESCE(i.on_hand, p.current_stock) as on_hand_stock
+                FROM products p
+                LEFT JOIN suppliers s ON p.supplier_id = s.id
+                LEFT JOIN inventory i ON p.id = i.product_id
+                WHERE (p.barcode = ? OR p.sku = ?) AND p.is_active = 1
+                LIMIT 1
+            """, (val, val))
+            prod_row = cursor.fetchone()
+            if prod_row:
+                prod = dict(prod_row)
+                if "retail_price_paise" not in prod or not prod["retail_price_paise"]:
+                    prod["retail_price_paise"] = int(round((prod.get("selling_price") or 0.0) * 100))
+                if "unit_cost_paise" not in prod or not prod["unit_cost_paise"]:
+                    prod["unit_cost_paise"] = int(round((prod.get("unit_cost") or 0.0) * 100))
+                prod["selling_price"] = float(prod["retail_price_paise"] / 100.0)
+                prod["current_stock"] = int(prod.get("on_hand_stock", prod.get("current_stock", 0)))
+
+                return jsonify({
+                    "status": "matched",
+                    "product": prod,
+                    "codes": decoded_codes,
+                    "matched_code": val
+                }), 200
+
+        return jsonify({
+            "status": "unknown_code",
+            "product": None,
+            "codes": decoded_codes,
+            "primary_code": decoded_codes[0]["value"]
+        }), 200
+
+    except Exception:
+        return jsonify({
+            "status": "unknown_code",
+            "product": None,
+            "codes": decoded_codes
+        }), 200
+
 
 @scanner_bp.route("/scanner/report-failure", methods=["POST"])
 def report_scanner_failure():

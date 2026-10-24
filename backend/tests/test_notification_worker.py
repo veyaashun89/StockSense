@@ -5,6 +5,7 @@ from unittest.mock import patch, MagicMock
 
 from backend.app import create_app
 from backend.database import init_db, get_db_session
+from backend.models.orm_models import Notification, NotificationSetting
 from backend.repositories.notification_repository import NotificationRepository
 from backend.workers.notification_worker import enqueue_notification, flush_queue, start_worker, stop_worker
 
@@ -13,6 +14,10 @@ def app_ctx():
     app = create_app({"TESTING": True})
     with app.app_context():
         init_db()
+        with get_db_session() as session:
+            session.query(Notification).delete()
+            session.query(NotificationSetting).delete()
+            session.commit()
         start_worker()
         yield app
         stop_worker()

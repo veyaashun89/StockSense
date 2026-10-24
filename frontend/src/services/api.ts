@@ -18,6 +18,7 @@ import {
   StockBatch,
   MarketSignal,
   CVScanResult,
+  BarcodeDecodeResponse,
   PaymentQrResponse,
   PaymentReceipt,
   SessionInfo,
@@ -486,6 +487,13 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     }).then(res => handleResponse<CVScanResult>(res)),
+
+  decodeBarcode: (data: { image?: string; image_data?: string }) =>
+    fetch(`${API_BASE}/scanner/decode`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }).then(res => handleResponse<BarcodeDecodeResponse>(res)),
 
   quickSale: (data: { product_id: number; quantity: number }) =>
     fetch(`${API_BASE}/scanner/quick-sale`, {
