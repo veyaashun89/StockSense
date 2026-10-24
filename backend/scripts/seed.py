@@ -10,98 +10,32 @@ from backend.models.orm_models import (
 )
 from backend.utils.money import rupees_to_paise
 
-DEMO_PRODUCTS = [
-    {
-        "sku": "SKU-MLK-01",
-        "name": "Fresh Whole Milk 1 Gal",
-        "category": "Dairy & Fresh",
-        "retail_price": 54.0,
-        "unit_cost": 42.0,
-        "is_perishable": 1,
-        "shelf_life_days": 7,
-        "lead_time_days": 2,
-        "min_order_qty": 24,
-        "pack_size": 6,
-        "safety_buffer_days": 2,
-        "stock": 24,
-        "barcode": "890103000001"
-    },
-    {
-        "sku": "SKU-RIC-01",
-        "name": "Premium Basmati Rice 5kg",
-        "category": "Grains & Staples",
-        "retail_price": 380.0,
-        "unit_cost": 290.0,
-        "is_perishable": 0,
-        "shelf_life_days": None,
-        "lead_time_days": 5,
-        "min_order_qty": 10,
-        "pack_size": 2,
-        "safety_buffer_days": 3,
-        "stock": 40,
-        "barcode": "890103000002"
-    },
-    {
-        "sku": "SKU-ATT-02",
-        "name": "Aashirvaad Shuddh Chakki Atta 10kg",
-        "category": "Grains & Staples",
-        "retail_price": 440.0,
-        "unit_cost": 360.0,
-        "is_perishable": 0,
-        "shelf_life_days": 90,
-        "lead_time_days": 4,
-        "min_order_qty": 10,
-        "pack_size": 2,
-        "safety_buffer_days": 3,
-        "stock": 30,
-        "barcode": "890103000003"
-    },
-    {
-        "sku": "SKU-MAG-01",
-        "name": "Maggi 2-Minute Masala Noodles 280g",
-        "category": "Packaged Foods",
-        "retail_price": 48.0,
-        "unit_cost": 36.0,
-        "is_perishable": 0,
-        "shelf_life_days": 180,
-        "lead_time_days": 3,
-        "min_order_qty": 24,
-        "pack_size": 12,
-        "safety_buffer_days": 2,
-        "stock": 50,
-        "barcode": "890103000004"
-    },
-    {
-        "sku": "SKU-SOP-01",
-        "name": "Dettol Original Bathing Soap 125g",
-        "category": "Personal Care",
-        "retail_price": 62.0,
-        "unit_cost": 48.0,
-        "is_perishable": 0,
-        "shelf_life_days": None,
-        "lead_time_days": 4,
-        "min_order_qty": 12,
-        "pack_size": 6,
-        "safety_buffer_days": 2,
-        "stock": 45,
-        "barcode": "890103000005"
-    },
-    {
-        "sku": "SKU-COF-01",
-        "name": "Bru Filter Coffee Powder 200g",
-        "category": "Beverages",
-        "retail_price": 180.0,
-        "unit_cost": 138.0,
-        "is_perishable": 0,
-        "shelf_life_days": 180,
-        "lead_time_days": 3,
-        "min_order_qty": 10,
-        "pack_size": 5,
-        "safety_buffer_days": 2,
-        "stock": 35,
-        "barcode": "890103000006"
-    }
-]
+def load_master_products():
+    import csv
+    master_path = Path(__file__).resolve().parent.parent / "data" / "products_master.csv"
+    products = []
+    if master_path.exists():
+        with open(master_path, mode="r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for r in reader:
+                products.append({
+                    "sku": r["sku"].strip(),
+                    "name": r["name"].strip(),
+                    "category": r["category"].strip(),
+                    "retail_price": float(r.get("retail_price_paise", 0)) / 100.0 if r.get("retail_price_paise") else float(r.get("selling_price", 0)),
+                    "unit_cost": float(r.get("unit_cost_paise", 0)) / 100.0 if r.get("unit_cost_paise") else float(r.get("unit_cost", 0)),
+                    "is_perishable": int(r.get("is_perishable") or 0),
+                    "shelf_life_days": int(r["shelf_life_days"]) if r.get("shelf_life_days") and r["shelf_life_days"].strip() else None,
+                    "lead_time_days": int(r.get("lead_time_days") or 2),
+                    "min_order_qty": int(r.get("min_order_qty") or 10),
+                    "pack_size": int(r.get("pack_size") or 1),
+                    "safety_buffer_days": int(r.get("safety_buffer_days") or 2),
+                    "stock": int(r.get("current_stock") or 20),
+                    "barcode": r.get("barcode", "").strip() or None
+                })
+    return products
+
+DEMO_PRODUCTS = load_master_products()
 
 def seed_database():
     """Idempotent seed script creating/updating demo users, products, starting inventory, and sample sales."""

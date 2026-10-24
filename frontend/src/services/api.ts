@@ -594,6 +594,11 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ older_than_days: olderThanDays || 30 })
-    }).then(res => handleResponse<{ status: string; deleted_count: number; retention_days: number; message: string }>(res))
+    }).then(res => handleResponse<{ status: string; deleted_count: number; retention_days: number; message: string }>(res)),
+
+  // Analytics (Demo CSV vs Live Ledger)
+  getDemoAnalytics: () => authFetch(`${API_BASE}/analytics/demo`).then(res => handleResponse<any>(res)),
+  importDemoAnalytics: () => authFetch(`${API_BASE}/analytics/demo/import`, { method: 'POST' }).then(res => handleResponse<any>(res)),
+  getLiveAnalytics: () => authFetch(`${API_BASE}/analytics/live`).then(res => handleResponse<any>(res))
 };
 

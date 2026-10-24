@@ -43,6 +43,7 @@ def create_app(test_config=None):
     from backend.routes.locations import locations_bp
     from backend.routes.records_api import records_bp
     from backend.routes.dealer import dealer_bp
+    from backend.routes.analytics import analytics_bp
     from backend.routes.overview import overview_bp
 
     app.register_blueprint(health_bp, url_prefix="/api")
@@ -69,6 +70,7 @@ def create_app(test_config=None):
     app.register_blueprint(locations_bp, url_prefix="/api")
     app.register_blueprint(records_bp, url_prefix="/api")
     app.register_blueprint(dealer_bp, url_prefix="/api")
+    app.register_blueprint(analytics_bp, url_prefix="/api")
 
 
 

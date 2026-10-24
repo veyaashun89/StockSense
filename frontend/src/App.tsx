@@ -15,6 +15,7 @@ import { WholesaleCatalogPage } from './pages/WholesaleCatalogPage';
 import { AdminConsolePage } from './pages/AdminConsolePage';
 import { ScannerPage } from './pages/ScannerPage';
 import { RecordPage } from './pages/RecordPage';
+import { AnalyticsPage } from './pages/AnalyticsPage';
 import { DevComponentsPage } from './pages/DevComponentsPage';
 import { LoginPage } from './pages/LoginPage';
 import { RecommendationDrawer } from './components/common/RecommendationDrawer';
@@ -84,7 +85,7 @@ export default function App() {
     const validRoutes = [
       'dashboard', 'scanner', 'record', 'inventory', 'sales',
       'forecast', 'reorder', 'alerts', 'orders', 'wholesale',
-      'admin', 'reports', 'settings', 'data', 'dev/components'
+      'admin', 'reports', 'settings', 'data', 'dev/components', 'analytics'
     ];
     if (validRoutes.includes(path)) {
       setCurrentRoute(path);
@@ -226,6 +227,10 @@ export default function App() {
 
             {currentRoute === 'reports' && (
               <ReportsPage currencySymbol={currencySymbol} />
+            )}
+
+            {currentRoute === 'analytics' && (
+              <AnalyticsPage currencySymbol={currencySymbol} />
             )}
 
             {currentRoute === 'settings' && (

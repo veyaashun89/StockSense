@@ -1,0 +1,6 @@
+date,sku,product_name,category,shrinkage_reason,units_lost,loss_value_paise
+2026-10-21,SKU-MILK-500,Amul Taaza Fresh Milk 500ml,Dairy & Fresh,EXPIRY,2,4600
+2026-10-21,SKU-BREAD-WHT,Harvest Gold White Bread 400g,Bakery & Staples,EXPIRY,1,3600
+2026-10-22,SKU-MILK-500,Amul Taaza Fresh Milk 500ml,Dairy & Fresh,TRANSIT_DAMAGE,1,2300
+2026-10-23,SKU-MAGGI-70,Nestle Maggi 2-Minute Noodles 70g,Packaged Foods,PACKET_PUNCTURE,2,2300
+2026-10-23,SKU-BREAD-WHT,Harvest Gold White Bread 400g,Bakery & Staples,EXPIRY,2,7200

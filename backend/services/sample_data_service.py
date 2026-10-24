@@ -31,76 +31,52 @@ def seed_demonstration_data(reset: bool = True) -> Dict[str, Any]:
     cursor.execute("SELECT id, name FROM suppliers")
     sup_map = {row["name"]: row["id"] for row in cursor.fetchall()}
 
-    # 2. Products Catalog (30 products covering all required behaviors)
-    # sku, name, category, current_stock, unit_cost, selling_price, supplier, lead_time, is_perishable, shelf_life, min_order, pack_size, safety_buffer
-    products_data = [
-        # Dairy & Fresh (Perishable)
-        ("SKU-MLK-01", "Fresh Whole Milk 1 Gal", "Dairy & Fresh", 8, 2.40, 4.29, "FreshValley Dairy Co.", 2, 1, 7, 24, 6, 2),
-        ("SKU-YOG-02", "Greek Yogurt Plain 32oz", "Dairy & Fresh", 45, 2.10, 3.99, "FreshValley Dairy Co.", 3, 1, 14, 12, 6, 3),
-        ("SKU-EGG-03", "Farm Fresh Grade A Eggs 12pk", "Dairy & Fresh", 14, 1.80, 3.49, "FreshValley Dairy Co.", 2, 1, 21, 24, 12, 2),
-        ("SKU-CHS-04", "Organic Cheddar Cheese 200g", "Dairy & Fresh", 28, 2.90, 5.29, "FreshValley Dairy Co.", 4, 1, 35, 12, 6, 3),
-        ("SKU-BTR-05", "Sweet Cream Butter 454g", "Dairy & Fresh", 19, 2.60, 4.89, "FreshValley Dairy Co.", 3, 1, 45, 12, 6, 3),
-        ("SKU-BER-06", "Organic Fresh Strawberries 400g", "Dairy & Fresh", 3, 3.10, 5.99, "FreshValley Dairy Co.", 2, 1, 5, 10, 5, 1), # Shelf life cap binding!
+    # 2. Products Catalog loaded from Single Source of Truth: backend/data/products_master.csv
+    master_csv_path = Path(__file__).resolve().parent.parent / "data" / "products_master.csv"
+    import csv
+    if not master_csv_path.exists():
+        raise FileNotFoundError(f"Missing products master file: {master_csv_path}")
 
-        # Incompatible Shelf Life Demonstration Item
-        ("SKU-SUS-07", "Fresh Raw Tuna Sushi Grade 250g", "Dairy & Fresh", 0, 8.50, 16.99, "SlowBoat Global Logistics", 10, 1, 4, 10, 5, 1), # Lead time 10d > Shelf life 4d!
+    with open(master_csv_path, mode="r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            sku = row["sku"].strip()
+            name = row["name"].strip()
+            cat = row["category"].strip()
+            stock = int(row.get("current_stock") or 0)
+            cost_paise = int(row.get("unit_cost_paise") or round(float(row.get("unit_cost", 0)) * 100))
+            price_paise = int(row.get("retail_price_paise") or round(float(row.get("selling_price", 0)) * 100))
+            cost = float(cost_paise) / 100.0
+            price = float(price_paise) / 100.0
+            sup_name = row.get("supplier_name", "").strip() or "FreshValley Dairy Co."
+            sup_id = sup_map.get(sup_name, 1)
+            lead = int(row.get("lead_time_days") or 2)
+            perish = int(row.get("is_perishable") or 0)
+            shelf = int(row["shelf_life_days"]) if row.get("shelf_life_days") and row["shelf_life_days"].strip() else None
+            moq = int(row.get("min_order_qty") or 10)
+            pack = int(row.get("pack_size") or 1)
+            buff = int(row.get("safety_buffer_days") or 2)
+            barcode = row.get("barcode", "").strip() or None
 
-        # Bakery & Staples
-        ("SKU-BRD-08", "Artisan Sourdough Loaf 500g", "Bakery & Staples", 2, 1.50, 3.99, "Golden Grain Millers", 1, 1, 4, 10, 5, 1),
-        ("SKU-RIC-09", "Royal Basmati Rice 5kg", "Bakery & Staples", 65, 7.50, 12.99, "Golden Grain Millers", 6, 0, None, 10, 5, 4),
-        ("SKU-FLR-10", "Unbleached Bread Flour 2kg", "Bakery & Staples", 18, 1.90, 3.79, "Golden Grain Millers", 5, 0, None, 15, 5, 3),
-        ("SKU-PST-11", "Bronze Cut Penne Pasta 500g", "Bakery & Staples", 35, 0.95, 2.29, "Golden Grain Millers", 5, 0, None, 24, 12, 3),
-        ("SKU-SGR-12", "Pure Cane Granulated Sugar 2kg", "Bakery & Staples", 40, 1.80, 3.49, "Golden Grain Millers", 4, 0, None, 10, 5, 3),
-        ("SKU-BAG-13", "Plain New York Bagels 6pk", "Bakery & Staples", 6, 2.20, 4.49, "Golden Grain Millers", 2, 1, 6, 12, 6, 2),
+            cursor.execute("""
+                INSERT INTO products (
+                    shop_id, sku, name, category, unit, current_stock, unit_cost, selling_price,
+                    unit_cost_paise, retail_price_paise, gst_rate, barcode,
+                    supplier_id, lead_time_days, is_perishable, shelf_life_days,
+                    min_order_qty, pack_size, safety_buffer_days
+                ) VALUES (1, ?, ?, ?, 'unit', ?, ?, ?, ?, ?, 5.0, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (sku, name, cat, stock, cost, price, cost_paise, price_paise, barcode, sup_id, lead, perish, shelf, moq, pack, buff))
+            pid = cursor.lastrowid
 
-        # Packaged Foods
-        ("SKU-TOM-14", "San Marzano Diced Tomatoes 400g", "Packaged Foods", 22, 1.10, 2.49, "Prime Staples & Pantry Ltd.", 7, 0, None, 48, 24, 4),
-        ("SKU-OIL-15", "Extra Virgin Olive Oil 750ml", "Packaged Foods", 9, 6.20, 11.99, "Prime Staples & Pantry Ltd.", 8, 0, None, 12, 6, 4),
-        ("SKU-PNT-16", "Creamy Organic Peanut Butter 500g", "Packaged Foods", 26, 2.50, 4.99, "Prime Staples & Pantry Ltd.", 6, 0, None, 12, 6, 3),
-        ("SKU-OAT-17", "Whole Rolled Oats 1kg", "Packaged Foods", 30, 2.00, 3.99, "Prime Staples & Pantry Ltd.", 5, 0, None, 12, 6, 3),
-        ("SKU-TNA-18", "Albacore Solid White Tuna 150g", "Packaged Foods", 55, 1.40, 2.99, "Prime Staples & Pantry Ltd.", 7, 0, None, 24, 12, 3),
-        ("SKU-SOUP-19","Organic Minestrone Soup 500ml", "Packaged Foods", 40, 1.80, 3.79, "Prime Staples & Pantry Ltd.", 5, 0, None, 12, 6, 3),
+            cursor.execute("""
+                INSERT INTO inventory (product_id, owner_id, on_hand, reorder_level)
+                VALUES (?, 1, ?, ?)
+            """, (pid, stock, moq))
 
-        # Beverages
-        ("SKU-COF-20", "Signature Dark Roast Coffee 400g", "Beverages", 12, 5.50, 10.99, "Artisan Beverage Distributors", 5, 0, None, 10, 5, 3),
-        ("SKU-OJ-21",  "Cold Pressed Orange Juice 1L", "Beverages", 6, 2.80, 5.49, "Artisan Beverage Distributors", 2, 1, 10, 12, 6, 2),
-        ("SKU-TEA-22", "Organic Green Tea Bags 50pk", "Beverages", 32, 2.20, 4.79, "Artisan Beverage Distributors", 4, 0, None, 12, 6, 3),
-        ("SKU-WTR-23", "Sparkling Spring Water 1L", "Beverages", 48, 0.70, 1.89, "Artisan Beverage Distributors", 3, 0, None, 24, 12, 2),
-        ("SKU-ALM-24", "Unsweetened Almond Milk 1L", "Beverages", 16, 1.95, 3.89, "Artisan Beverage Distributors", 3, 1, 30, 12, 6, 2),
-
-        # Household & Personal Care
-        ("SKU-DSH-25", "Ultra Grease Dish Soap 500ml", "Household", 15, 1.60, 3.29, "CleanHome Consumer Goods", 6, 0, None, 20, 10, 3),
-        ("SKU-DET-26", "Concentrated Laundry Detergent 2L", "Household", 42, 6.50, 12.99, "CleanHome Consumer Goods", 7, 0, None, 10, 5, 3),
-        ("SKU-TOW-27", "2-Ply Kitchen Paper Towels 6pk", "Household", 0, 4.20, 8.49, "CleanHome Consumer Goods", 5, 0, None, 12, 6, 3), # Critical stockout!
-        ("SKU-TP-28",  "Enamel Care Mint Toothpaste 120ml", "Personal Care", 24, 1.75, 3.99, "CleanHome Consumer Goods", 6, 0, None, 24, 12, 3),
-        ("SKU-SOAP-29","Moisturizing Liquid Hand Soap 300ml", "Personal Care", 38, 1.30, 2.99, "CleanHome Consumer Goods", 4, 0, None, 20, 10, 3),
-        ("SKU-SHP-30", "Gentle Botanical Shampoo 400ml", "Personal Care", 20, 3.50, 7.49, "CleanHome Consumer Goods", 6, 0, None, 12, 6, 3),
-    ]
-
-    for p in products_data:
-        sku, name, cat, stock, cost, price, sup_name, lead, perish, shelf, moq, pack, buff = p
-        sup_id = sup_map.get(sup_name)
-        cost_paise = int(round(cost * 100))
-        price_paise = int(round(price * 100))
-        cursor.execute("""
-            INSERT INTO products (
-                shop_id, sku, name, category, unit, current_stock, unit_cost, selling_price,
-                unit_cost_paise, retail_price_paise, gst_rate,
-                supplier_id, lead_time_days, is_perishable, shelf_life_days,
-                min_order_qty, pack_size, safety_buffer_days
-            ) VALUES (1, ?, ?, ?, 'unit', ?, ?, ?, ?, ?, 5.0, ?, ?, ?, ?, ?, ?, ?)
-        """, (sku, name, cat, stock, cost, price, cost_paise, price_paise, sup_id, lead, perish, shelf, moq, pack, buff))
-        pid = cursor.lastrowid
-
-        cursor.execute("""
-            INSERT INTO inventory (product_id, owner_id, on_hand, reorder_level)
-            VALUES (?, 1, ?, ?)
-        """, (pid, stock, moq))
-
-        cursor.execute("""
-            INSERT INTO inventory_movements (shop_id, product_id, owner_id, movement_type, quantity, delta, balance_after, reason)
-            VALUES (1, ?, 1, 'INITIAL', ?, ?, ?, 'Demo setup initialization')
-        """, (pid, stock, stock, stock))
+            cursor.execute("""
+                INSERT INTO inventory_movements (shop_id, product_id, owner_id, movement_type, quantity, delta, balance_after, reason)
+                VALUES (1, ?, 1, 'INITIAL', ?, ?, ?, 'Master Catalog initialization')
+            """, (pid, stock, stock, stock))
 
     # 3. Deterministic Historical Sales (60 Days)
     cursor.execute("SELECT id, sku FROM products WHERE shop_id = 1")
@@ -274,8 +250,8 @@ SKU-TOW-27,0,{today.isoformat()},LOT-T505,
 
     return {
         "status": "success",
-        "products_count": len(products_data),
+        "products_count": len(products_db),
         "sales_records_count": total_sales,
         "sample_files_created": ["gst_invoices.csv", "stock.csv", "market.csv"],
-        "message": f"Successfully initialized StockSense v2 with {len(products_data)} products, {total_sales} transactions, GST lines, stock batches, market signals, purchase orders, and automated alerts."
+        "message": f"Successfully initialized StockSense v2 with {len(products_db)} products, {total_sales} transactions, GST lines, stock batches, market signals, purchase orders, and automated alerts."
     }

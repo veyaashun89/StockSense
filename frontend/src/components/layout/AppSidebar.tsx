@@ -44,6 +44,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       { id: 'dashboard', label: 'Wholesale Overview', icon: LayoutDashboard },
       { id: 'orders', label: 'Incoming Purchase Orders', icon: Truck },
       { id: 'wholesale', label: 'Wholesale Catalog', icon: Store },
+      { id: 'analytics', label: 'Analytics & Demo Data', icon: BarChart2 },
       { id: 'reports', label: 'Reports', icon: FileText }
     ];
     secondaryNav = [
@@ -55,6 +56,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       { id: 'dashboard', label: 'System Overview', icon: LayoutDashboard },
       { id: 'admin', label: 'Admin Console (RBAC)', icon: ShieldAlert },
       { id: 'data', label: 'Data & Pipeline', icon: Database },
+      { id: 'analytics', label: 'Analytics & Demo Data', icon: BarChart2 },
       { id: 'reports', label: 'System Reports', icon: FileText }
     ];
     secondaryNav = [
@@ -66,6 +68,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
       { id: 'scanner', label: 'AI Vision & POS Scanner', icon: Scan },
       { id: 'record', label: 'Live Record Analytics', icon: Eye },
+      { id: 'analytics', label: 'Analytics & Demo Data', icon: BarChart2 },
       { id: 'inventory', label: 'Inventory', icon: Package },
       { id: 'sales', label: 'Sales & Imports', icon: ShoppingCart },
       { id: 'forecast', label: 'Demand Forecast', icon: TrendingUp },

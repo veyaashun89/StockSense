@@ -1,0 +1,19 @@
+sale_id,timestamp,sku,product_name,category,quantity,unit_price_paise,total_paise,margin_rate,payment_mode
+DEMO-TX-001,2026-10-21T09:15:22,SKU-MILK-500,Amul Taaza Fresh Milk 500ml,Dairy & Fresh,2,2700,5400,0.148,UPI
+DEMO-TX-002,2026-10-21T09:22:45,SKU-BREAD-WHT,Harvest Gold White Bread 400g,Bakery & Staples,1,4500,4500,0.200,CASH
+DEMO-TX-003,2026-10-21T10:05:11,SKU-MAGGI-70,Nestle Maggi 2-Minute Noodles 70g,Packaged Foods,4,1400,5600,0.178,UPI
+DEMO-TX-004,2026-10-21T10:44:30,SKU-OIL-1L,Fortune Sunlite Sunflower Oil 1L,Oils & Ghee,1,14500,14500,0.172,UPI
+DEMO-TX-005,2026-10-21T11:12:18,SKU-RICE-1KG,Fortune Everyday Basmati Rice 1kg,Grains & Staples,2,11500,23000,0.200,CARD
+DEMO-TX-006,2026-10-21T11:50:09,SKU-SOAP-100,Dettol Original Bathing Soap 100g,Personal Care,3,3800,11400,0.236,UPI
+DEMO-TX-007,2026-10-22T08:30:15,SKU-MILK-500,Amul Taaza Fresh Milk 500ml,Dairy & Fresh,3,2700,8100,0.148,UPI
+DEMO-TX-008,2026-10-22T09:10:44,SKU-BREAD-WHT,Harvest Gold White Bread 400g,Bakery & Staples,2,4500,9000,0.200,UPI
+DEMO-TX-009,2026-10-22T10:15:33,SKU-MAGGI-70,Nestle Maggi 2-Minute Noodles 70g,Packaged Foods,6,1400,8400,0.178,CASH
+DEMO-TX-010,2026-10-22T11:45:20,SKU-OIL-1L,Fortune Sunlite Sunflower Oil 1L,Oils & Ghee,2,14500,29000,0.172,CARD
+DEMO-TX-011,2026-10-22T13:20:10,SKU-RICE-1KG,Fortune Everyday Basmati Rice 1kg,Grains & Staples,1,11500,11500,0.200,UPI
+DEMO-TX-012,2026-10-22T15:10:55,SKU-SOAP-100,Dettol Original Bathing Soap 100g,Personal Care,2,3800,7600,0.236,UPI
+DEMO-TX-013,2026-10-23T08:45:00,SKU-MILK-500,Amul Taaza Fresh Milk 500ml,Dairy & Fresh,4,2700,10800,0.148,UPI
+DEMO-TX-014,2026-10-23T09:30:12,SKU-BREAD-WHT,Harvest Gold White Bread 400g,Bakery & Staples,1,4500,4500,0.200,CASH
+DEMO-TX-015,2026-10-23T11:00:22,SKU-MAGGI-70,Nestle Maggi 2-Minute Noodles 70g,Packaged Foods,5,1400,7000,0.178,UPI
+DEMO-TX-016,2026-10-23T14:15:40,SKU-OIL-1L,Fortune Sunlite Sunflower Oil 1L,Oils & Ghee,1,14500,14500,0.172,UPI
+DEMO-TX-017,2026-10-23T16:40:19,SKU-RICE-1KG,Fortune Everyday Basmati Rice 1kg,Grains & Staples,3,11500,34500,0.200,CARD
+DEMO-TX-018,2026-10-23T18:10:05,SKU-SOAP-100,Dettol Original Bathing Soap 100g,Personal Care,4,3800,15200,0.236,UPI
