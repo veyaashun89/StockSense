@@ -1,0 +1,44 @@
+{
+  "created_at": "2026-10-24T05:48:00",
+  "strategy": "Session-Isolated Partitioning (Zero Random-Frame Leakage)",
+  "splits": {
+    "train": {
+      "sessions": [
+        "session_A",
+        "session_B",
+        "session_C",
+        "session_D"
+      ],
+      "description": "Store Shelf, Carton Packing, Counter Lighting Variations",
+      "image_count": 300,
+      "label_count": 300
+    },
+    "val": {
+      "sessions": [
+        "session_E"
+      ],
+      "description": "Distinct Store Aisle & Multi-Box Unpacking",
+      "image_count": 50,
+      "label_count": 50
+    },
+    "test": {
+      "sessions": [
+        "session_F"
+      ],
+      "description": "Held-out Terminal Checkout & Low-Light Inward Carton Logistics",
+      "image_count": 50,
+      "label_count": 50
+    }
+  },
+  "total_images": 400,
+  "total_labels": 400,
+  "classes": {
+    "0": "person",
+    "1": "SKU-MILK-500",
+    "2": "SKU-BREAD-WHT",
+    "3": "SKU-MAGGI-70",
+    "4": "SKU-RICE-1KG",
+    "5": "SKU-OIL-1L",
+    "6": "SKU-SOAP-100"
+  }
+}

@@ -39,11 +39,13 @@ class IoUTracker:
     Maintains persistent track IDs across frames so unique humans and products
     are not over-counted every frame.
     """
-    def __init__(self, max_lost_frames: int = 15, iou_threshold: float = 0.3):
+    def __init__(self, max_lost_frames: int = 15, iou_threshold: float = 0.3, consecutive_votes_required: int = 3, conf_threshold: float = 0.50):
         self.next_track_id = 1
         self.tracks: Dict[int, Dict[str, Any]] = {}
         self.max_lost_frames = max_lost_frames
         self.iou_threshold = iou_threshold
+        self.consecutive_votes_required = int(os.environ.get("VOTING_CONSECUTIVE_FRAMES", str(consecutive_votes_required)))
+        self.conf_threshold = float(os.environ.get("VOTING_CONF_THRESHOLD", str(conf_threshold)))
         self.frame_count = 0
         self.unique_person_ids: set = set()
         self.unique_product_tracks: set = set()
@@ -66,6 +68,7 @@ class IoUTracker:
         for det in detections:
             box = det["bbox"]
             cls_name = det["class_name"]
+            det_conf = float(det.get("confidence", 0.0))
             best_iou = 0.0
             best_tid = None
 
@@ -79,32 +82,74 @@ class IoUTracker:
 
             if best_tid is not None:
                 # Update existing track
-                self.tracks[best_tid]["bbox"] = box
-                self.tracks[best_tid]["lost"] = 0
-                self.tracks[best_tid]["hits"] += 1
+                trk = self.tracks[best_tid]
+                trk["bbox"] = box
+                trk["lost"] = 0
+                trk["hits"] += 1
+                
+                # Multi-frame voting logic
+                if det_conf >= self.conf_threshold:
+                    trk["votes"] = trk.get("votes", 0) + 1
+                else:
+                    trk["votes"] = max(0, trk.get("votes", 0) - 1)
+
+                if trk["votes"] >= self.consecutive_votes_required:
+                    trk["confirmed"] = True
+
                 matched_track_ids.add(best_tid)
                 det_copy = dict(det)
                 det_copy["track_id"] = best_tid
                 det_copy["is_new"] = False
+                det_copy["votes"] = trk["votes"]
+                det_copy["required_votes"] = self.consecutive_votes_required
+                det_copy["confirmed"] = trk["confirmed"]
+                
+                if not trk["confirmed"] and cls_name == "product":
+                    det_copy["display_sku"] = "unknown"
+                    det_copy["needs_operator_confirmation"] = True
+                    det_copy["status"] = "voting"
+                else:
+                    det_copy["display_sku"] = det.get("sku", cls_name)
+                    det_copy["needs_operator_confirmation"] = False
+                    det_copy["status"] = "confirmed"
+
                 tracked_detections.append(det_copy)
             else:
                 # Create new track
                 tid = self.next_track_id
                 self.next_track_id += 1
+                is_passing = det_conf >= self.conf_threshold
+                initial_votes = 1 if is_passing else 0
+                confirmed = initial_votes >= self.consecutive_votes_required
+
                 self.tracks[tid] = {
                     "bbox": box,
                     "class_name": cls_name,
                     "lost": 0,
-                    "hits": 1
+                    "hits": 1,
+                    "votes": initial_votes,
+                    "confirmed": confirmed
                 }
                 matched_track_ids.add(tid)
                 det_copy = dict(det)
                 det_copy["track_id"] = tid
                 det_copy["is_new"] = True
+                det_copy["votes"] = initial_votes
+                det_copy["required_votes"] = self.consecutive_votes_required
+                det_copy["confirmed"] = confirmed
+
+                if not confirmed and cls_name == "product":
+                    det_copy["display_sku"] = "unknown"
+                    det_copy["needs_operator_confirmation"] = True
+                    det_copy["status"] = "voting"
+                else:
+                    det_copy["display_sku"] = det.get("sku", cls_name)
+                    det_copy["needs_operator_confirmation"] = False
+                    det_copy["status"] = "confirmed"
 
                 if cls_name == "person":
                     self.unique_person_ids.add(tid)
-                elif cls_name == "product":
+                elif cls_name == "product" and confirmed:
                     self.unique_product_tracks.add(tid)
 
                 tracked_detections.append(det_copy)
@@ -241,7 +286,9 @@ class RealTimeObjectDetector:
         # Summary counts
         people_in_frame = sum(1 for d in tracked_detections if d["class_name"] == "person")
         products_in_frame = sum(1 for d in tracked_detections if d["class_name"] == "product")
+        confirmed_products = sum(1 for d in tracked_detections if d["class_name"] == "product" and d.get("confirmed"))
         matched_skus = list({d["sku"] for d in tracked_detections if d.get("sku")})
+        confirmed_skus = list({d["sku"] for d in tracked_detections if d.get("confirmed") and d.get("sku")})
 
         return {
             "status": "success",
@@ -252,8 +299,11 @@ class RealTimeObjectDetector:
             "people_in_frame": people_in_frame,
             "unique_people_session": len(self.tracker.unique_person_ids),
             "products_in_frame": products_in_frame,
+            "confirmed_products": confirmed_products,
             "unique_products_session": len(self.tracker.unique_product_tracks),
             "matched_skus": matched_skus,
+            "confirmed_skus": confirmed_skus,
+            "needs_operator_confirmation": any(d.get("needs_operator_confirmation") for d in tracked_detections),
             "detections": tracked_detections,
             "privacy_notice": "Camera analytics: people are counted, not identified.",
             "annotated_frame": blurred_b64

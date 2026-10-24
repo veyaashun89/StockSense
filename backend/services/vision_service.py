@@ -239,6 +239,34 @@ def recognize_product_cv(
                     "product": prod,
                     "message": f"Exact Barcode match for {prod['name']} ({prod['sku']})"
                 }
+        
+        # Barcode provided but not in local catalog: Try Open Food Facts (ODbL)
+        try:
+            from backend.services.open_food_facts_service import query_open_food_facts
+            off_prod = query_open_food_facts(barcode_text)
+            if off_prod:
+                return {
+                    "matched": True,
+                    "recognition_mode": "barcode_exact",
+                    "confidence": 0.99,
+                    "confidence_percentage": "99.0%",
+                    "bounding_box": [0.15, 0.15, 0.85, 0.85],
+                    "product": off_prod,
+                    "source": "Open Food Facts (ODbL)",
+                    "message": f"Open Food Facts match for {off_prod['name']} ({off_prod['barcode']})"
+                }
+        except Exception:
+            pass
+
+        # If only barcode was passed (no camera image and no detected label), do NOT fall back to visual guesswork!
+        if not image_input and not detected_label:
+            return {
+                "matched": False,
+                "recognition_mode": "barcode_exact",
+                "barcode": barcode_text,
+                "confidence": 0.0,
+                "message": f"Barcode {barcode_text} decoded but not in store catalog or Open Food Facts."
+            }
 
     # 2. Automated Barcode & QR Code Frame Decoding
     detected_barcodes = []

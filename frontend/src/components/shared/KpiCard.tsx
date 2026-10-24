@@ -11,6 +11,8 @@ interface KpiCardProps {
   sparklineData?: number[];
   icon?: React.ReactNode;
   subtitle?: string;
+  sourceLabel?: string;
+  isDemo?: boolean;
   onClick?: () => void;
   className?: string;
 }
@@ -22,6 +24,8 @@ export const KpiCard: React.FC<KpiCardProps> = ({
   sparklineData = [12, 18, 15, 24, 28, 22, 35],
   icon,
   subtitle,
+  sourceLabel,
+  isDemo = false,
   onClick,
   className = ''
 }) => {
@@ -115,6 +119,21 @@ export const KpiCard: React.FC<KpiCardProps> = ({
           <span className="text-slate-400 text-[11px]">Up to date</span>
         )}
       </div>
+
+      {/* Source Label and Demo Data Badge */}
+      {sourceLabel && (
+        <div className="flex items-center justify-between gap-1.5 mt-2 pt-1.5 border-t border-slate-100 dark:border-slate-800 text-[10px]">
+          <span className="text-slate-400 truncate flex items-center gap-1">
+            <span className={`w-1.5 h-1.5 rounded-full ${isDemo ? 'bg-amber-400' : 'bg-emerald-500'}`} />
+            <span>{sourceLabel}</span>
+          </span>
+          {isDemo && (
+            <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 font-bold uppercase text-[9px] shrink-0">
+              Demo data
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 };

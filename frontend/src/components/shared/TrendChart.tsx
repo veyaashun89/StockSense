@@ -27,6 +27,8 @@ interface TrendChartProps {
   secondaryDataLabel?: string;
   height?: number;
   currencyPrefix?: string;
+  sourceLabel?: string;
+  isDemo?: boolean;
   className?: string;
 }
 
@@ -40,6 +42,8 @@ export const TrendChart: React.FC<TrendChartProps> = ({
   secondaryDataLabel = 'Secondary Metric',
   height = 240,
   currencyPrefix = '',
+  sourceLabel,
+  isDemo = false,
   className = ''
 }) => {
   const [showTable, setShowTable] = useState(false);
@@ -52,11 +56,24 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
         <div>
-          <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-            {title}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+              {title}
+            </h3>
+            {isDemo && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 uppercase">
+                Demo data
+              </span>
+            )}
+          </div>
           {subtitle && (
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</p>
+          )}
+          {sourceLabel && (
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 flex items-center gap-1">
+              <span className={`w-1.5 h-1.5 rounded-full ${isDemo ? 'bg-amber-400' : 'bg-emerald-500'}`} />
+              <span>{sourceLabel}</span>
+            </p>
           )}
         </div>
 

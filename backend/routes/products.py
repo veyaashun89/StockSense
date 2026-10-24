@@ -105,3 +105,69 @@ def import_products():
         return jsonify(res), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+
+# Open Food Facts (ODbL) Endpoints
+@products_bp.route("/products/openfoodfacts/<barcode>", methods=["GET"])
+def lookup_open_food_facts(barcode):
+    from backend.services.open_food_facts_service import query_open_food_facts
+    product = query_open_food_facts(barcode)
+    if not product:
+        return jsonify({
+            "error": f"Barcode {barcode} not found on Open Food Facts. You can enter details manually or use CSV fallback.",
+            "barcode": barcode,
+            "status": "not_found"
+        }), 404
+    return jsonify({
+        "status": "found",
+        "product": product,
+        "source": "Open Food Facts (ODbL)",
+        "attribution": "Data and images sourced from Open Food Facts under ODbL"
+    }), 200
+
+@products_bp.route("/products/openfoodfacts/import", methods=["POST"])
+def import_from_open_food_facts():
+    from backend.services.open_food_facts_service import import_off_product_to_catalog
+    data = request.get_json() or {}
+    barcode = data.get("barcode")
+    if not barcode:
+        return jsonify({"error": "Missing 'barcode' field in JSON request body"}), 400
+
+    unit_cost_paise = int(data.get("unit_cost_paise", 2500))
+    retail_price_paise = int(data.get("retail_price_paise", 3500))
+    initial_stock = int(data.get("initial_stock", 50))
+    shop_id = int(data.get("shop_id", 1))
+
+    try:
+        res = import_off_product_to_catalog(
+            barcode=barcode,
+            shop_id=shop_id,
+            unit_cost_paise=unit_cost_paise,
+            retail_price_paise=retail_price_paise,
+            initial_stock=initial_stock
+        )
+        return jsonify(res), 201
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        return jsonify({"error": f"Failed to import product: {str(e)}"}), 500
+
+@products_bp.route("/products/openfoodfacts/csv-fallback", methods=["POST"])
+def import_csv_fallback():
+    from backend.services.open_food_facts_service import import_products_from_csv
+    content = ""
+    if "file" in request.files:
+        content = request.files["file"].read().decode("utf-8", errors="replace")
+    elif request.data:
+        content = request.data.decode("utf-8", errors="replace")
+    elif request.get_json() and "csv_content" in request.get_json():
+        content = request.get_json()["csv_content"]
+
+    if not content:
+        return jsonify({"error": "No CSV content provided"}), 400
+
+    try:
+        res = import_products_from_csv(content)
+        return jsonify(res), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+

@@ -239,6 +239,33 @@ export default function App() {
             {currentRoute === 'dev/components' && (
               <DevComponentsPage />
             )}
+
+            {/* Global Platform Footer with Open Food Facts (ODbL) Attribution */}
+            <footer className="mt-12 pt-6 pb-6 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400 space-y-1">
+              <p>
+                StockSense AI Retail Intelligence Platform &copy; 2026. Data and images sourced from{' '}
+                <a
+                  href="https://world.openfoodfacts.org"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                >
+                  Open Food Facts
+                </a>{' '}
+                contributors under the{' '}
+                <a
+                  href="https://opendatacommons.org/licenses/odbl/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                >
+                  Open Database License (ODbL)
+                </a>.
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Offline YOLOv8n ONNX Object Detection on CPU | zxing-cpp Barcode Decoding | Rule 5 Movement Auditing
+              </p>
+            </footer>
           </div>
         </main>
       </div>
