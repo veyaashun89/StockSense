@@ -142,23 +142,26 @@ export const api = {
   // Health & Dashboard
   getHealth: () => fetch(`${API_BASE}/health`).then(res => handleResponse<{ status: string; timestamp: string }>(res)),
 
-  getDashboard: () => fetch(`${API_BASE}/dashboard`).then(res => handleResponse<DashboardData>(res)),
+  getDashboard: () => authFetch(`${API_BASE}/dashboard`).then(res => handleResponse<DashboardData>(res)),
 
   // Role Scoped Overview Endpoints
-  getOverview: (role?: string) =>
-    fetch(role ? `${API_BASE}/overview/${role}` : `${API_BASE}/overview`).then(res => handleResponse<any>(res)),
+  getOverview: (role?: string) => {
+    const user = getStoredUser();
+    const effectiveRole = (role || user?.role || 'retailer').toLowerCase();
+    return authFetch(`${API_BASE}/overview/${effectiveRole}`).then(res => handleResponse<any>(res));
+  },
 
   getRetailerOverview: () =>
-    fetch(`${API_BASE}/overview/retailer`).then(res => handleResponse<RetailerOverviewData>(res)),
+    authFetch(`${API_BASE}/overview/retailer`).then(res => handleResponse<RetailerOverviewData>(res)),
 
   getWholesalerOverview: () =>
-    fetch(`${API_BASE}/overview/wholesaler`).then(res => handleResponse<WholesalerOverviewData>(res)),
+    authFetch(`${API_BASE}/overview/wholesaler`).then(res => handleResponse<WholesalerOverviewData>(res)),
 
   getDealerOverview: () =>
-    fetch(`${API_BASE}/overview/dealer`).then(res => handleResponse<DealerOverviewData>(res)),
+    authFetch(`${API_BASE}/overview/dealer`).then(res => handleResponse<DealerOverviewData>(res)),
 
   getAdminOverview: () =>
-    fetch(`${API_BASE}/overview/admin`).then(res => handleResponse<AdminOverviewData>(res)),
+    authFetch(`${API_BASE}/overview/admin`).then(res => handleResponse<AdminOverviewData>(res)),
 
   // Products
   getProducts: (params?: {
@@ -382,64 +385,64 @@ export const api = {
         if (v !== undefined && v !== null && v !== '') sp.append(k, String(v));
       });
     }
-    return fetch(`${API_BASE}/orders?${sp.toString()}`).then(res =>
+    return authFetch(`${API_BASE}/orders?${sp.toString()}`).then(res =>
       handleResponse<{ total: number; items: PurchaseOrder[] }>(res)
     );
   },
 
   createOrder: (data: { items: any[]; wholesaler_id?: number; notes?: string }) =>
-    fetch(`${API_BASE}/orders`, {
+    authFetch(`${API_BASE}/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     }).then(res => handleResponse<PurchaseOrder>(res)),
 
-  getOrder: (id: number) => fetch(`${API_BASE}/orders/${id}`).then(res => handleResponse<PurchaseOrder>(res)),
+  getOrder: (id: number) => authFetch(`${API_BASE}/orders/${id}`).then(res => handleResponse<PurchaseOrder>(res)),
 
   updateOrderStatus: (id: number, status: string, receivedQuantities?: Record<string, number>) =>
-    fetch(`${API_BASE}/orders/${id}/status`, {
+    authFetch(`${API_BASE}/orders/${id}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status, received_quantities: receivedQuantities })
     }).then(res => handleResponse<PurchaseOrder>(res)),
 
   // Wholesale Catalog & Signals
-  getWholesaleCatalog: () => fetch(`${API_BASE}/wholesale/catalog`).then(res => handleResponse<WholesaleCatalogItem[]>(res)),
+  getWholesaleCatalog: () => authFetch(`${API_BASE}/wholesale/catalog`).then(res => handleResponse<WholesaleCatalogItem[]>(res)),
 
   addWholesaleCatalogItem: (data: Partial<WholesaleCatalogItem>) =>
-    fetch(`${API_BASE}/wholesale/catalog`, {
+    authFetch(`${API_BASE}/wholesale/catalog`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     }).then(res => handleResponse<{ status: string; message: string }>(res)),
 
-  getWholesaleDemandSignals: () => fetch(`${API_BASE}/wholesale/demand-signals`).then(res => handleResponse<any[]>(res)),
+  getWholesaleDemandSignals: () => authFetch(`${API_BASE}/wholesale/demand-signals`).then(res => handleResponse<any[]>(res)),
 
   // Automated Pipeline
-  getPipelineStatus: () => fetch(`${API_BASE}/pipeline/status`).then(res => handleResponse<any>(res)),
+  getPipelineStatus: () => authFetch(`${API_BASE}/pipeline/status`).then(res => handleResponse<any>(res)),
 
-  getPipelineRuns: (limit: number = 20) => fetch(`${API_BASE}/pipeline/runs?limit=${limit}`).then(res => handleResponse<{ total: number; runs: PipelineRun[] }>(res)),
+  getPipelineRuns: (limit: number = 20) => authFetch(`${API_BASE}/pipeline/runs?limit=${limit}`).then(res => handleResponse<{ total: number; runs: PipelineRun[] }>(res)),
 
-  runPipeline: () => fetch(`${API_BASE}/pipeline/run`, { method: 'POST' }).then(res => handleResponse<any>(res)),
+  runPipeline: () => authFetch(`${API_BASE}/pipeline/run`, { method: 'POST' }).then(res => handleResponse<any>(res)),
 
   // Admin Console
-  getAdminUsers: () => fetch(`${API_BASE}/admin/users`).then(res => handleResponse<User[]>(res)),
+  getAdminUsers: () => authFetch(`${API_BASE}/admin/users`).then(res => handleResponse<User[]>(res)),
 
   createAdminUser: (data: { email: string; password: string; role: string; name: string }) =>
-    fetch(`${API_BASE}/admin/users`, {
+    authFetch(`${API_BASE}/admin/users`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     }).then(res => handleResponse<{ status: string; message: string }>(res)),
 
   updateAdminUser: (id: number, data: { active?: number; role?: string }) =>
-    fetch(`${API_BASE}/admin/users/${id}`, {
+    authFetch(`${API_BASE}/admin/users/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     }).then(res => handleResponse<User>(res)),
 
-  getAdminSystem: () => fetch(`${API_BASE}/admin/system`).then(res => handleResponse<any>(res)),
+  getAdminSystem: () => authFetch(`${API_BASE}/admin/system`).then(res => handleResponse<any>(res)),
 
   // Reports
   getReportData: (reportType: string) =>
